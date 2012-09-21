@@ -212,7 +212,11 @@ public class GroupInfo extends Writables {
 	 * @param server
 	 */
 	public void remove(ServerName server) {
-		this.serverNames.remove(server);
+		ServerName actual = ServerName.findServerWithSameHostnamePort(
+				this.serverNames, server);
+		if (actual != null) {
+			this.serverNames.remove(actual);
+		}
 	}
 
 	/**
