@@ -85,15 +85,15 @@ public class GroupInfoManager extends Writables {
 	 * @throws IOException
 	 *             Signals that an I/O exception has occurred.
 	 */
-	synchronized void removeServer(ServerName server) throws InterruptedException,
-			IOException {
-		if (isAlreadyAssigned(server)) {
-			GroupInfo group = getGroupInfoOfServer(server);
-			if (group == null) {
+	synchronized void removeServer(ServerName server)
+			throws InterruptedException, IOException {
+		GroupInfo group = getGroupInfoOfServer(server);
+		if (group != null) {
+			if (group.getName().equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)
+					&& (group.getServers().size() == 1)) {
+				LOG.warn("Trying to delete the last server in the default group.");
 				throw new IOException(
-						"Server:"
-								+ server
-								+ " to be removed not in any of the region server groups.");
+						"The default group should contain atleast one server.");
 			} else {
 				// First we unassign all the regions of the region server.
 				// Assign the regions to any of the other server in the same
@@ -101,31 +101,37 @@ public class GroupInfoManager extends Writables {
 				// Remove the region from the group.
 				moveOutRegionsFromServer(getRegionsOfServer(server));
 				group.remove(server);
-				// see if the regions are root and meta and call correct functions.
+				// see if the regions are root and meta and call correct
+				// functions.
 				List<HRegionInfo> regionsTobeMoved = new ArrayList<HRegionInfo>();
-				for(HRegionInfo tobeMoved : getRegionsOfServer(server)){
-					if (tobeMoved.isRootRegion()){
+				for (HRegionInfo tobeMoved : getRegionsOfServer(server)) {
+					if (tobeMoved.isRootRegion()) {
 						regionsTobeMoved.remove(tobeMoved);
 						try {
 							this.master.getAssignmentManager().assignRoot();
 						} catch (KeeperException e) {
-							LOG.warn("KeeperException while moving root region.", e);
+							LOG.warn(
+									"KeeperException while moving root region.",
+									e);
 						}
-					}else if (tobeMoved.isMetaRegion()){
+					} else if (tobeMoved.isMetaRegion()) {
 						regionsTobeMoved.remove(tobeMoved);
 						this.master.getAssignmentManager().assignMeta();
-					}else {
+					} else {
 						regionsTobeMoved.add(tobeMoved);
 					}
 				}
 				if (regionsTobeMoved.size() > 0) {
 					this.master.getAssignmentManager().assignUserRegions(
-							regionsTobeMoved, this.master.getServerManager().getOnlineServersList());
+							regionsTobeMoved,
+							this.master.getServerManager()
+									.getOnlineServersList());
 				}
 				writeConfig();
 			}
-		}else {
-			LOG.info("The server to be removed " + server.getHostAndPort() + " does not belong to any group.");
+		} else {
+			LOG.info("The server to be removed " + server.getHostAndPort()
+					+ " does not belong to any group.");
 		}
 	}
 
@@ -206,8 +212,15 @@ public class GroupInfoManager extends Writables {
 	 * @return List of HRegionInfo the region server contains
 	 */
 	public List<HRegionInfo> getRegionsOfServer(ServerName server) {
-		List<HRegionInfo> assignments = master.getAssignmentManager().getAssignments().get(server);
-		return (assignments != null ? assignments : new ArrayList<HRegionInfo>());
+		List<HRegionInfo> assignments = null;
+		ServerName actual = ServerName.findServerWithSameHostnamePort(master
+				.getServerManager().getOnlineServersList(), server);
+		if (actual != null) {
+			assignments = master.getAssignmentManager().getAssignments()
+					.get(actual);
+
+		}
+		return assignments != null ? assignments : new ArrayList<HRegionInfo>();
 	}
 
 	public GroupInfo getGroupInfoOfServer(ServerName server) {
@@ -312,7 +325,7 @@ public class GroupInfoManager extends Writables {
 	 * @param regionInfo
 	 * @param serverInfo
 	 * @return
-	 */
+	 *//*
 	boolean inSameGroup(HRegionInfo regionInfo, ServerName serverInfo) {
 		GroupInfo rsGroup = getGroupInfoOfTable(regionInfo
 				.getTableNameAsString());
@@ -320,7 +333,7 @@ public class GroupInfoManager extends Writables {
 			return true;
 		}
 		return false;
-	}
+	}*/
 
 	/**
 	 * Filter servers which are being moved from the list.
@@ -505,13 +518,6 @@ public class GroupInfoManager extends Writables {
 			this.master.getAssignmentManager().unassign(regions);
 		}
 
-	}
-
-	private boolean isAlreadyAssigned(ServerName server) {
-		if (getGroupInfoOfServer(server) == null) {
-			return false;
-		} else
-			return true;
 	}
 
 	/**
