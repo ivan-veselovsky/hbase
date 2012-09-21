@@ -15,6 +15,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ClusterStatus;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.ServerName;
+import org.jruby.compiler.ir.operands.Array;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.TreeMultiset;
@@ -60,25 +61,12 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 	@Override
 	public List<RegionPlan> balanceCluster(
 			Map<ServerName, List<HRegionInfo>> clusterState) {
-		List<RegionPlan> regionPlans = new ArrayList<RegionPlan>();
-		// We need a new comparator to ignore the time stamp of the servername.
-		TreeMultiset<ServerName> serverNames = TreeMultiset
-				.create(new Comparator<ServerName>() {
-					@Override
-					public int compare(ServerName s1, ServerName s2) {
-						if (ServerName.isSameHostnameAndPort(s1, s2)) {
-							return 0;
-						} else
-							return 1;
-					}
-
-				});
-		serverNames.addAll(clusterState.keySet());
+		/*List<RegionPlan> regionPlans = new ArrayList<RegionPlan>();
 		for (GroupInfo info : groupManager.getExistingGroups()) {
 			Map<ServerName, List<HRegionInfo>> groupClusterState = new HashMap<ServerName, List<HRegionInfo>>();
 			for (ServerName sName : info.getServers()) {
-				if (serverNames.contains(sName)) {
-					ServerName actual = getServerName(serverNames, sName);
+				ServerName actual = getServerName(clusterState.keySet(), sName);
+				if (actual!= null) {
 					groupClusterState.put(actual, clusterState.get(actual));
 				}
 			}
@@ -87,8 +75,9 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 			if (groupPlans != null) {
 				regionPlans.addAll(groupPlans);
 			}
-		}
-		return regionPlans;
+		}*/
+		//return regionPlans;
+		return this.internalBalancer.balanceCluster(clusterState);
 	}
 
 	@Override
@@ -169,12 +158,8 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		String tableName = region.getTableNameAsString();
 		List<ServerName> candidateList;
 		GroupInfo groupInfo = groupManager.getGroupInfoOfTable(tableName);
-		// Check if its the cluster startup scenario.
-		if ((groupInfo == null) || (groupInfo.getServers().size() == 0)){
-			candidateList = servers;
-		}else {
-			candidateList = getServerToAssign(groupInfo, servers);
-		}
+		candidateList = getServerToAssign(groupInfo, servers);
+
 		if ((prefferedServer == null) || (groupInfo.contains(prefferedServer) ==false)) {
 			return this.internalBalancer.randomAssignment(region,candidateList, null);
 		} else {
@@ -184,15 +169,21 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 
 	private List<ServerName> getServerToAssign(GroupInfo groupInfo,
 			List<ServerName> onlineServers) {
-		List<ServerName> candidateList = groupInfo.getServers();
-		if (candidateList.isEmpty()) {
+		List<ServerName> candidateList = new ArrayList<ServerName>();
+		if (groupInfo.getServers().size() == 0) {
 			LOG.warn("Wanted to do random assignment with "
 					+ groupInfo.getName() + "but going with default group.");
 			GroupInfo defaultInfo = groupManager
 					.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-			candidateList.addAll(defaultInfo.getServers());
+			if (defaultInfo.getServers().size() != 0) {
+				candidateList.addAll(defaultInfo.getServers());
+			} else {
+				LOG.warn("The default group is empty.");
+				candidateList.addAll(onlineServers);
+			}
+		}else {
+			candidateList.addAll(groupInfo.getServers());
 		}
-
 		return groupManager.filterServers(candidateList, onlineServers);
 	}
 
