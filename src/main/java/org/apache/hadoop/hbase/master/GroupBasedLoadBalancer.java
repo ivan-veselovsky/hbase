@@ -175,13 +175,8 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 					+ groupInfo.getName() + "but going with default group.");
 			GroupInfo defaultInfo = groupManager
 					.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-			if (defaultInfo.getServers().size() != 0) {
-				candidateList.addAll(defaultInfo.getServers());
-			} else {
-				LOG.warn("The default group is empty.");
-				candidateList.addAll(onlineServers);
-			}
-		}else {
+			candidateList.addAll(defaultInfo.getServers());
+		} else {
 			candidateList.addAll(groupInfo.getServers());
 		}
 		return groupManager.filterServers(candidateList, onlineServers);

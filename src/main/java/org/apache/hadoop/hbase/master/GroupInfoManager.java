@@ -45,6 +45,8 @@ import org.apache.hadoop.hbase.util.Writables;
 import org.apache.zookeeper.KeeperException;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
 
 /**
  * This class is responsible for managing region server group information.
@@ -53,7 +55,9 @@ public class GroupInfoManager extends Writables {
 	private static final Log LOG = LogFactory.getLog(GroupInfoManager.class);
 	/** The file name used to store group information in HDFS */
 	public static final String GROUP_INFO_FILE_NAME = ".rsgroupinfo";
-	public final static String GROUP_ASSIGN_MGR_IMPL = "hbase.assignment.manager.class";
+
+	/** The set of servers belonging to region server groups except for default group.*/
+	private HashSet<ServerName> assignedServers = Sets.newHashSet();
 	private final FileSystem fs;
 	private MasterServices master;
 	private Path path;
@@ -69,10 +73,6 @@ public class GroupInfoManager extends Writables {
 		this.path = new Path(FSUtils.getRootDir(conf), GROUP_INFO_FILE_NAME);
 		this.fs = FSUtils.getRootDir(conf).getFileSystem(conf);
 		this.readConfig();
-		if (groupMap.size() == 0) {
-			groupMap.put(GroupInfo.DEFAULT_GROUP, new GroupInfo(
-					GroupInfo.DEFAULT_GROUP));
-		}
 	}
 
 	/**
@@ -99,14 +99,17 @@ public class GroupInfoManager extends Writables {
 				// Assign the regions to any of the other server in the same
 				// group.
 				// Remove the region from the group.
-				moveOutRegionsFromServer(getRegionsOfServer(server));
-				group.remove(server);
+				List<HRegionInfo> previousRegions = getRegionsOfServer(server);
+				moveOutRegionsFromServer(previousRegions);
+				if (group.getName().equalsIgnoreCase(GroupInfo.DEFAULT_GROUP) == false) {
+					this.groupMap.get(group.getName()).remove(server);
+				}
 				// see if the regions are root and meta and call correct
 				// functions.
-				List<HRegionInfo> regionsTobeMoved = new ArrayList<HRegionInfo>();
-				for (HRegionInfo tobeMoved : getRegionsOfServer(server)) {
-					if (tobeMoved.isRootRegion()) {
-						regionsTobeMoved.remove(tobeMoved);
+				List<HRegionInfo> toBeReAssigned  = Lists.newArrayList(previousRegions);
+				for (HRegionInfo region : previousRegions) {
+					if (region.isRootRegion()) {
+						toBeReAssigned.remove(region);
 						try {
 							this.master.getAssignmentManager().assignRoot();
 						} catch (KeeperException e) {
@@ -114,16 +117,14 @@ public class GroupInfoManager extends Writables {
 									"KeeperException while moving root region.",
 									e);
 						}
-					} else if (tobeMoved.isMetaRegion()) {
-						regionsTobeMoved.remove(tobeMoved);
+					} else if (region.isMetaRegion()) {
+						toBeReAssigned.remove(region);
 						this.master.getAssignmentManager().assignMeta();
-					} else {
-						regionsTobeMoved.add(tobeMoved);
 					}
 				}
-				if (regionsTobeMoved.size() > 0) {
+				if (toBeReAssigned.size() > 0) {
 					this.master.getAssignmentManager().assignUserRegions(
-							regionsTobeMoved,
+							previousRegions,
 							this.master.getServerManager()
 									.getOnlineServersList());
 				}
@@ -135,35 +136,37 @@ public class GroupInfoManager extends Writables {
 		}
 	}
 
-	public synchronized boolean addServers(List<ServerName> servers, String targetGroup) {
+	public synchronized boolean addServers(ServerName server, String targetGroup) {
 		GroupInfo group = null;
-		// Lock the group to make sure the target group not be deleted.
 
-		for(String gName: groupMap.keySet()){
-			if (groupMap.get(gName).contains(servers)) {
-				LOG.info("The list of servers : " + servers
-						+ " already belong to group: " + gName + ".");
+		if(ServerName.findServerWithSameHostnamePort(assignedServers, server) != null){
+				LOG.info("The server : " + server
+						+ " is already assigned.");
+				return false;
+
+		}else if ((targetGroup == null)
+				// If targetGroup is not null, should not change the group
+				// configuration.
+				|| (this.getGroupInformation(targetGroup) == null)
+				|| targetGroup.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
+			LOG.info(server + "  wil belong to the default group.");
+
+		} else {
+			group = this.getGroupInformation(targetGroup);
+			LOG.info("Adding " + server + " to the " + group.getName()
+					+ " group.");
+			group.add(server);
+			assignedServers.add(server);
+			try {
+				writeConfig();
+			} catch (IOException e) {
+				LOG.error("Write group configuration error !", e);
+				group.remove(server);
+				assignedServers.remove(server);
 				return false;
 			}
 		}
-		// If targetGroup is not null, should not change the group
-		// configuration.
-		if ((targetGroup == null)
-				|| (this.getGroupInformation(targetGroup) == null)) {
-			LOG.info("Adding " + servers + " to the default group.");
-			this.groupMap.get(GroupInfo.DEFAULT_GROUP).add(servers);
-		} else {
-			group = this.getGroupInformation(targetGroup);
-			LOG.info("Adding " + servers + " to the " + group.getName() + " group.");
-			group.add(servers);
-		}
-		try {
-			writeConfig();
-		} catch (IOException e) {
-			LOG.error("Write group configuration error !", e);
-			this.groupMap.get(targetGroup).getServers().remove(servers);
-			return false;
-		}
+
 		return true;
 	}
 
@@ -176,7 +179,9 @@ public class GroupInfoManager extends Writables {
 		FSDataOutputStream output = null;
 		try {
 			output = fs.create(path, true);
-			GroupInfo.writeGroups(groupMap.values(), output);
+			List<GroupInfo> groups = Lists.newArrayList(groupMap.values());
+			groups.add(getGroupInformation(GroupInfo.DEFAULT_GROUP));
+			GroupInfo.writeGroups(groups, output);
 		} finally {
 			output.close();
 		}
@@ -194,9 +199,11 @@ public class GroupInfoManager extends Writables {
 			in = fs.open(path);
 			try {
 				this.groupMap.clear();
+				assignedServers.clear();
 				groupList = GroupInfo.readGroups(in);
 				for (GroupInfo group : groupList) {
 					groupMap.put(group.getName(), group);
+					assignedServers.addAll(group.getServers());
 				}
 			} finally {
 				in.close();
@@ -224,7 +231,9 @@ public class GroupInfoManager extends Writables {
 	}
 
 	public GroupInfo getGroupInfoOfServer(ServerName server) {
-		for(GroupInfo info : groupMap.values()){
+		ArrayList<GroupInfo> groups = Lists.newArrayList(groupMap.values());
+		groups.add(getGroupInformation(GroupInfo.DEFAULT_GROUP));
+		for(GroupInfo info : groups){
 			if(info.getServers().contains(server)){
 				return info;
 			}
@@ -243,13 +252,21 @@ public class GroupInfoManager extends Writables {
 		List<HRegionInfo> regions = new ArrayList<HRegionInfo>();
 		if (groupName == null || !groupExist(groupName)) {
 			return regions;
-		}
-		List<ServerName> servers = groupMap.get(groupName).getServers();
-		for (ServerName server : servers) {
-			List<HRegionInfo> temp = getRegionsOfServer(server);
-			if (temp != null) {
-				regions.addAll(temp);
+		} else {
+			List<ServerName> servers;
+			if (groupName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
+				servers = getGroupInformation(GroupInfo.DEFAULT_GROUP)
+						.getServers();
+			} else {
+				servers = groupMap.get(groupName).getServers();
 			}
+			for (ServerName server : servers) {
+				List<HRegionInfo> temp = getRegionsOfServer(server);
+				if (temp != null) {
+					regions.addAll(temp);
+				}
+			}
+
 		}
 		return regions;
 	}
@@ -278,7 +295,15 @@ public class GroupInfoManager extends Writables {
 	 * @return An instance of GroupInfo object.
 	 */
 	public GroupInfo getGroupInformation(String groupName) {
-		return this.groupMap.get(groupName);
+		if (groupName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
+			GroupInfo defaultInfo = new GroupInfo(GroupInfo.DEFAULT_GROUP);
+			defaultInfo.addAll(differenceServers(this.master.getServerManager()
+					.getOnlineServersList(), Lists
+					.newArrayList(assignedServers)));
+			return defaultInfo;
+		} else {
+			return this.groupMap.get(groupName);
+		}
 	}
 
 	/**
@@ -304,7 +329,7 @@ public class GroupInfoManager extends Writables {
 			return null;
 		}
 		String group = GroupInfo.getGroupString(des);
-		tableRSGroup = groupMap.get(group);
+		tableRSGroup = getGroupInformation(group);
 		return tableRSGroup;
 	}
 
@@ -354,13 +379,28 @@ public class GroupInfoManager extends Writables {
 		return finalList;
 	}
 
+	List<ServerName> differenceServers(List<ServerName> onlineServers,
+			List<ServerName> servers) {
+		ArrayList<ServerName> finalList = new ArrayList<ServerName>();
+		for (ServerName olServer : onlineServers) {
+			ServerName actual = GroupBasedLoadBalancer.getServerName(
+					servers, olServer);
+			if (actual == null) {
+				finalList.add(olServer);
+			}
+		}
+		return finalList;
+	}
+
 	/**
 	 * Gets the group to GroupInfo mapping.
 	 *
 	 * @return the group mapping
 	 */
 	public Collection<GroupInfo> getExistingGroups() {
-		return groupMap.values();
+		List<GroupInfo> groupsInfo = Lists.newArrayList(groupMap.values());
+		groupsInfo.add(getGroupInformation(GroupInfo.DEFAULT_GROUP));
+		return groupsInfo;
 	}
 
 	/**
@@ -372,8 +412,11 @@ public class GroupInfoManager extends Writables {
 	boolean groupExist(String grpName) {
 		if (grpName == null) {
 			return false;
+		} else if (grpName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
+			return true;
+		} else {
+			return this.groupMap.containsKey(grpName);
 		}
-		return this.groupMap.containsKey(grpName);
 	}
 
 	/**
@@ -384,12 +427,14 @@ public class GroupInfoManager extends Writables {
 	 * @return true if delete successfully
 	 */
 	public synchronized boolean deleteGroup(String groupName) {
-		boolean isDeleteSuccess = false;
+		boolean isDeleteSuccess;
 		GroupInfo group = groupMap.get(groupName);
-		if (group == null) {
+		if(groupName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)){
+			isDeleteSuccess = false;
+		}else if (group == null) {
 			isDeleteSuccess = true;
-		} else if (group.isDefault() || group.getServers().size() != 0) {
-			LOG.info("The group to be deleted is either the default group or it is not empty.");
+		} else if (group.getServers().size() != 0) {
+			LOG.info("The group to be deleted is not empty.");
 			isDeleteSuccess = false;
 		} else {
 			try {
@@ -497,8 +542,7 @@ public class GroupInfoManager extends Writables {
 				+ " from Group:" + serverMovePlan.getSourceGroup()
 				+ " to Group:" + serverMovePlan.getTargetGroup());
 		removeServer(serverMovePlan.getServername());
-		if (addServers(Lists.newArrayList(serverMovePlan.getServername()),
-				serverMovePlan.getTargetGroup())) {
+		if (addServers(serverMovePlan.getServername(),serverMovePlan.getTargetGroup())) {
 			LOG.debug("Successfully move "
 					+ serverMovePlan.getServername().getHostAndPort()
 					+ " from group " + serverMovePlan.getSourceGroup()
@@ -507,8 +551,7 @@ public class GroupInfoManager extends Writables {
 			// There was some failure while moving, so add the rs
 			// again to the previous group.
 			LOG.debug("Added the region server back to source group.");
-			addServers(Lists.newArrayList(serverMovePlan.getServername()),
-					serverMovePlan.getSourceGroup());
+			addServers(serverMovePlan.getServername(),serverMovePlan.getSourceGroup());
 		}
 	}
 
