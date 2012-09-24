@@ -75,20 +75,6 @@ public class GroupInfo extends Writables {
 	}
 
 	/**
-	 * If this group is the default group.
-	 *
-	 * @return
-	 */
-	public boolean isDefault() {
-		return this.name.equals(DEFAULT_GROUP);
-	}
-
-
-	public void add(List<ServerName> servers){
-		this.serverNames.addAll(servers);
-	}
-
-	/**
 	 * Return if the server is in this group.
 	 *
 	 * @param server
@@ -98,6 +84,14 @@ public class GroupInfo extends Writables {
 		ServerName actual = ServerName.findServerWithSameHostnamePort(
 				this.serverNames, server);
 		return actual == null ? false : true;
+	}
+
+	public void add(ServerName server){
+		this.serverNames.add(server);
+	}
+
+	public void addAll(Collection<ServerName> sNames){
+		this.serverNames.addAll(sNames);
 	}
 
 	public boolean contains(List<ServerName> serverList) {
@@ -178,7 +172,9 @@ public class GroupInfo extends Writables {
 			while ((line = br.readLine()) != null) {
 				GroupInfo group = new GroupInfo();
 				if (group.readFields(line)) {
-					groupList.add(group);
+					if (group.getName().equalsIgnoreCase(DEFAULT_GROUP) == false) {
+						groupList.add(group);
+					}
 				}
 			}
 		} finally {

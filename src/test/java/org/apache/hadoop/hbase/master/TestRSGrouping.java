@@ -43,8 +43,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import com.google.common.collect.Lists;
-
 @Category(MediumTests.class)
 public class TestRSGrouping {
 	private static HBaseTestingUtility TEST_UTIL;
@@ -72,12 +70,6 @@ public class TestRSGrouping {
 		GroupInfoManager groupManager = new GroupInfoManager(master);
 		GroupInfo defaultInfo = groupManager
 				.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		assertTrue(defaultInfo != null);
-		if(defaultInfo.getServers().size() == 0){
-		groupManager.addServers(master.getServerManager()
-				.getOnlineServersList(), GroupInfo.DEFAULT_GROUP);
-		}
-		groupManager.refresh();
 		defaultInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		// Assignment of root and meta regions.
@@ -91,14 +83,11 @@ public class TestRSGrouping {
 	public void testSimpleRegionServerMove() throws IOException, InterruptedException {
 		GroupInfoManager groupManager = new GroupInfoManager(master);
 		String adminGrp = "admin";
-		setUpTwoGroups(adminGrp, 3, 1);
+		addGroup(groupManager, adminGrp,1);
 		groupManager.refresh();
 		GroupInfo dInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
 		master.getAssignmentManager().refreshBalancer();
-		assertTrue(groupManager.addGroup("application1"));
-		Iterator<ServerName> itr = dInfo.getServers().iterator();
-		groupManager.moveServer(new ServerPlan(itr.next(),
-				GroupInfo.DEFAULT_GROUP, "application1"));
+		addGroup(groupManager, "application1",1);
 		//Force the group info manager to read group information from disk.
 		groupManager.refresh();
 		assertTrue(groupManager.getExistingGroups().size() == 3);
@@ -127,13 +116,15 @@ public class TestRSGrouping {
 		byte[] FAMILYNAME = Bytes.toBytes("fam");
 		GroupInfoManager groupManager = new GroupInfoManager(master);
 		String newGroupName = "temptables";
-		setUpTwoGroups(newGroupName, 2, 2);
+		addGroup(groupManager, newGroupName,2);
 		groupManager.refresh();
 
 		HTable ht = TEST_UTIL.createTable(TABLENAME, FAMILYNAME);
+		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
+				FAMILYNAME, 4) == 4);
+		TEST_UTIL.waitUntilAllRegionsAssigned(4);
 		assertTrue(master.getAssignmentManager().getZKTable()
 				.isEnabledTable(Bytes.toString(TABLENAME)));
-		TEST_UTIL.loadTable(ht, FAMILYNAME);
 		List<HRegionInfo> regionList = TEST_UTIL.getHBaseAdmin()
 				.getTableRegions(TABLENAME);
 		assertTrue(regionList.size() > 0);
@@ -168,13 +159,6 @@ public class TestRSGrouping {
 		GroupInfoManager groupManager = new GroupInfoManager(master);
 		String userTableGroup = "usertables";
 		GroupInfo dInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		if(dInfo.getServers().size() == 0){
-			groupManager.addServers(master.getServerManager()
-					.getOnlineServersList(), GroupInfo.DEFAULT_GROUP);
-		}
-		groupManager.refresh();
-		dInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		assertTrue(dInfo.getServers().size() == 4);
 		assertFalse(groupManager.deleteGroup(GroupInfo.DEFAULT_GROUP));
 
 		// Now create a new group and try moving all the four region servers
@@ -212,7 +196,7 @@ public class TestRSGrouping {
 	public void testRegionMove() throws IOException, InterruptedException{
 		GroupInfoManager groupManager = new GroupInfoManager(master);
 		String newGroupName = "temptables";
-		setUpTwoGroups(newGroupName, 3, 1);
+		addGroup(groupManager, newGroupName,1);
 		groupManager.refresh();
 		String tableNameOne = "TABLE-One";
 		byte[] tableOneBytes = Bytes.toBytes(tableNameOne);
@@ -239,31 +223,20 @@ public class TestRSGrouping {
 				.getConfiguration()), GroupInfoManager.GROUP_INFO_FILE_NAME), true);
 	}
 
-	private void setUpTwoGroups(String newRSGroup, int numDefaultGroupServers,
-			int numServersInNew) throws IOException, InterruptedException {
-		GroupInfoManager gManager = new GroupInfoManager(master);
+	private void addGroup(GroupInfoManager gManager, String groupName,
+			int servers) throws IOException, InterruptedException {
 		GroupInfo defaultInfo = gManager
 				.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		List<ServerName> onlineServers = master.getServerManager()
-				.getOnlineServersList();
-		assertTrue((numDefaultGroupServers + numServersInNew) == onlineServers
-				.size());
-
 		assertTrue(defaultInfo != null);
-		List<ServerName> defaultServers = Lists.newArrayList();
-		for(int i = 0; i < numDefaultGroupServers; i++){
-			ServerName sn = onlineServers.get(i);
-			defaultServers.add(sn);
+		assertTrue(defaultInfo.getServers().size() >= servers);
+		assertTrue(gManager.addGroup(groupName));
+		Iterator<ServerName> itr = defaultInfo.getServers().iterator();
+		for (int i = 0; i < servers; i++) {
+			gManager.moveServer(new ServerPlan(itr.next(),
+					GroupInfo.DEFAULT_GROUP, groupName));
 		}
-		gManager.addServers(defaultServers, GroupInfo.DEFAULT_GROUP);
-		onlineServers.removeAll(defaultServers);
 		gManager.refresh();
-		defaultInfo = gManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		assertTrue(defaultInfo.getServers().size() == numDefaultGroupServers);
-		assertTrue(gManager.addGroup(newRSGroup));
-		gManager.addServers(onlineServers, newRSGroup);
-		gManager.refresh();
-		assertTrue(gManager.getGroupInformation(newRSGroup).getServers().size() == numServersInNew);
+		assertTrue(gManager.getGroupInformation(groupName).getServers().size() == servers);
 	}
 
 }
