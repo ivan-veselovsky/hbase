@@ -36,7 +36,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.Writables;
 
 import com.google.common.collect.Lists;
 
@@ -45,7 +44,7 @@ import com.google.common.collect.Lists;
  * name,special configuration tag and servers of this group. The comparable
  * implementation of this class compares only the group name
  */
-public class GroupInfo extends Writables {
+public class GroupInfo{
 
 	// Set to store region servers which are actually assigned to this group.
 	private HashSet<ServerName> serverNames;

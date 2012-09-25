@@ -208,6 +208,7 @@ public class TestRSGrouping {
 				familyOneBytes, 10) == 10);
 		TEST_UTIL.waitUntilAllRegionsAssigned(10);
 		List<HRegionInfo> regions = groupManager.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+		assertTrue(regions.size() >= 10);
 		HRegionInfo region = regions.get(0);
 		//Lets move this region to temptables group.
 		master.getAssignmentManager().refreshBalancer();
@@ -223,7 +224,7 @@ public class TestRSGrouping {
 				.getConfiguration()), GroupInfoManager.GROUP_INFO_FILE_NAME), true);
 	}
 
-	private void addGroup(GroupInfoManager gManager, String groupName,
+	static void addGroup(GroupInfoManager gManager, String groupName,
 			int servers) throws IOException, InterruptedException {
 		GroupInfo defaultInfo = gManager
 				.getGroupInformation(GroupInfo.DEFAULT_GROUP);
