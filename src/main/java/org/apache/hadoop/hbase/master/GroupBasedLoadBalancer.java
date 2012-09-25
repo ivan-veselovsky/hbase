@@ -3,8 +3,6 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -15,10 +13,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ClusterStatus;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.ServerName;
-import org.jruby.compiler.ir.operands.Array;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.TreeMultiset;
 
 public class GroupBasedLoadBalancer implements LoadBalancer {
 
@@ -170,14 +166,16 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 	private List<ServerName> getServerToAssign(GroupInfo groupInfo,
 			List<ServerName> onlineServers) {
 		List<ServerName> candidateList = new ArrayList<ServerName>();
-		if (groupInfo.getServers().size() == 0) {
+		List<ServerName> liveGroupServers = groupManager.filterServers(
+				onlineServers, groupInfo.getServers());
+		if (liveGroupServers.size() == 0) {
 			LOG.warn("Wanted to do random assignment with "
 					+ groupInfo.getName() + "but going with default group.");
 			GroupInfo defaultInfo = groupManager
 					.getGroupInformation(GroupInfo.DEFAULT_GROUP);
 			candidateList.addAll(defaultInfo.getServers());
 		} else {
-			candidateList.addAll(groupInfo.getServers());
+			candidateList.addAll(liveGroupServers);
 		}
 		return groupManager.filterServers(candidateList, onlineServers);
 	}
