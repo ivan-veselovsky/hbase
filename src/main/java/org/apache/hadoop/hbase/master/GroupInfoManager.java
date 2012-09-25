@@ -253,20 +253,11 @@ public class GroupInfoManager extends Writables {
 		if (groupName == null || !groupExist(groupName)) {
 			return regions;
 		} else {
-			List<ServerName> servers;
-			if (groupName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
-				servers = getGroupInformation(GroupInfo.DEFAULT_GROUP)
-						.getServers();
-			} else {
-				servers = groupMap.get(groupName).getServers();
-			}
+			List<ServerName> servers = getGroupInformation(groupName).getServers();
 			for (ServerName server : servers) {
 				List<HRegionInfo> temp = getRegionsOfServer(server);
-				if (temp != null) {
-					regions.addAll(temp);
-				}
+				regions.addAll(temp);
 			}
-
 		}
 		return regions;
 	}
