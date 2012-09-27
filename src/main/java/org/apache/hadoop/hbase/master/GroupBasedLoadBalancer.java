@@ -2,7 +2,6 @@ package org.apache.hadoop.hbase.master;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -165,8 +164,8 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 
 	private List<ServerName> getServerToAssign(GroupInfo groupInfo,
 			List<ServerName> onlineServers) {
-		List<ServerName> candidateList = new ArrayList<ServerName>();
-		List<ServerName> liveGroupServers = groupManager.filterServers(
+		//List<ServerName> candidateList = new ArrayList<ServerName>();
+		/*List<ServerName> liveGroupServers = groupManager.filterServers(
 				onlineServers, groupInfo.getServers());
 		if (liveGroupServers.size() == 0) {
 			LOG.warn("Wanted to do random assignment with "
@@ -176,8 +175,8 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 			candidateList.addAll(defaultInfo.getServers());
 		} else {
 			candidateList.addAll(liveGroupServers);
-		}
-		return groupManager.filterServers(candidateList, onlineServers);
+		}*/
+		return groupManager.filterServers(groupInfo.getServers(), onlineServers);
 	}
 
 	private ArrayListMultimap<String, HRegionInfo> groupRegions(
@@ -209,13 +208,6 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 	@Override
 	public void refresh() {
 		this.groupManager.refresh();
-	}
-
-	static ServerName getServerName(Collection<ServerName> serverNameSet,
-			ServerName sn) {
-		ServerName actual =
-		      ServerName.findServerWithSameHostnamePort(serverNameSet, sn);
-		    return actual;
 	}
 
 }
