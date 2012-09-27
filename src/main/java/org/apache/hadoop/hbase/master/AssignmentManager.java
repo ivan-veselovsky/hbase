@@ -1735,8 +1735,8 @@ public class AssignmentManager extends ZooKeeperListener {
    * @param state
    * @param hijack
    *          - true if needs to be hijacked and reassigned, false otherwise.
-   * @param regionAlreadyInTransitionException  
-   *          - true if we need to retry assignment because of RegionAlreadyInTransitionException.       
+   * @param regionAlreadyInTransitionException
+   *          - true if we need to retry assignment because of RegionAlreadyInTransitionException.
    * @return the version of the offline node if setting of the OFFLINE node was
    *         successful, -1 otherwise.
    */
@@ -1749,7 +1749,7 @@ public class AssignmentManager extends ZooKeeperListener {
         String msg = "Unexpected state : " + state + " .. Cannot transit it to OFFLINE.";
         this.master.abort(msg, new IllegalStateException(msg));
         return -1;
-      } 
+      }
       LOG.debug("Unexpected state : " + state
           + " but retrying to assign because RegionAlreadyInTransitionException.");
     }
@@ -1881,9 +1881,12 @@ public class AssignmentManager extends ZooKeeperListener {
           || existingPlan.getDestination() == null
           || drainingServers.contains(existingPlan.getDestination())) {
         newPlan = true;
-        randomPlan = new RegionPlan(state.getRegion(), null, balancer
-            .randomAssignment(state.getRegion(), servers, null));
-        this.regionPlans.put(encodedName, randomPlan);
+        ServerName newDestination =  balancer.randomAssignment(state.getRegion(), servers, null);
+				if (newDestination != null) {
+					randomPlan = new RegionPlan(state.getRegion(), null,
+							newDestination);
+					this.regionPlans.put(encodedName, randomPlan);
+				}
       }
     }
 

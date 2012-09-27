@@ -40,18 +40,12 @@ import org.apache.hadoop.hbase.util.Bytes;
 import com.google.common.collect.Lists;
 
 /**
- * Stores the group information of region server groups. Contains the group
- * name,special configuration tag and servers of this group. The comparable
- * implementation of this class compares only the group name
+ * Stores the group information of region server groups.
  */
 public class GroupInfo{
 
-	// Set to store region servers which are actually assigned to this group.
 	private HashSet<ServerName> serverNames;
-
-	// Default group name.
 	public static final String DEFAULT_GROUP = "default";
-
 	public static final byte[] GROUP_KEY = Bytes.toBytes("rs_group");
 	private String name;
 
@@ -74,7 +68,7 @@ public class GroupInfo{
 	}
 
 	/**
-	 * Return if the server is in this group.
+	 * Checks based of equivalence of host name and port.
 	 *
 	 * @param server
 	 * @return true if the server is in this group
@@ -85,21 +79,42 @@ public class GroupInfo{
 		return actual == null ? false : true;
 	}
 
+	/**
+	 * Adds the server to the group.
+	 *
+	 * @param server the server
+	 */
 	public void add(ServerName server){
 		this.serverNames.add(server);
 	}
 
-	public void addAll(Collection<ServerName> sNames){
-		this.serverNames.addAll(sNames);
+	/**
+	 * Adds a group of servers.
+	 *
+	 * @param servers the servers
+	 */
+	public void addAll(List<ServerName> servers){
+		this.serverNames.addAll(servers);
 	}
 
+	/**
+	 * Checks based of equivalence of host name and port.
+	 *
+	 * @param serverList The list to check for containment.
+	 * @return true, if successful
+	 */
 	public boolean contains(List<ServerName> serverList) {
-		boolean contains = true;
-		for(ServerName server : serverList){
-			contains = contains && this.contains(server);
-			if(!contains) return contains;
+		if (serverList.size() == 0) {
+			return false;
+		} else {
+			boolean contains = true;
+			for (ServerName server : serverList) {
+				contains = contains && this.contains(server);
+				if (!contains)
+					return contains;
+			}
+			return contains;
 		}
-		return contains;
 	}
 
 
@@ -233,7 +248,7 @@ public class GroupInfo{
 		StringBuffer sb = new StringBuffer();
 		sb.append("{GroupName:");
 		sb.append(this.name);
-		sb.append("\t");
+		sb.append("-");
 		sb.append(" Severs:");
 		sb.append(this.serverNames + "}");
 		return sb.toString();
@@ -267,8 +282,12 @@ public class GroupInfo{
 		if (serverNames == null) {
 			if (other.serverNames != null)
 				return false;
-		} else if (!serverNames.equals(other.serverNames))
+		} else if (serverNames.size() != other.getServers().size()){
 			return false;
+		}else if(!contains(other.getServers())){
+			return false;
+		}
+
 		return true;
 	}
 }
