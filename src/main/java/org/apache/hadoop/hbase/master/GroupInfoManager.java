@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -83,7 +84,7 @@ public class GroupInfoManager {
 
 	/**
 	 * Removes the server from the region server group to which it
-	 * belongs presently..
+	 * belongs presently.
 	 * @param server The ServerName of the serve to remove.
 	 * @throws InterruptedException the interrupted exception
 	 * @throws IOException
@@ -118,11 +119,11 @@ public class GroupInfoManager {
 	* @throws IOException
 	 */
 	private void addServer(ServerName server, String targetGroup) throws IOException{
-		if (ServerName.findServerWithSameHostnamePort(getAssignedServers(),
-				server) != null) {
-			throw new IOException("The server : " + server + " is already assigned.");
-		} else if ((targetGroup == null)
-				|| (this.getGroupInformation(targetGroup) == null)
+		GroupInfo targetGroupInfo = getGroupInformation(targetGroup);
+		if (targetGroupInfo.contains(server)) {
+			serversInTransition.remove(server);
+			LOG.info("The server : " + server + " is already belongs to target group.");
+		} else if ((targetGroupInfo == null)
 				|| targetGroup.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
 			LOG.info(server + "  wil belong to the default group.");
 			serversInTransition.remove(server);
@@ -458,27 +459,34 @@ public class GroupInfoManager {
 		}
 	}
 
+
 	/**
 	 * Carry out the server movement from one group to another.
 	 *
-	 * @param serverMovePlan
-	 *            {@link GroupOperations#ServerMovingPlan}
-	 * @throws IOException
-	 * @throws InterruptedException
+	 * @param server the server
+	 * @param sourceGroup the source group
+	 * @param targetGroup the target group
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 * @throws InterruptedException the interrupted exception
 	 */
-	public synchronized void moveServer(ServerPlan serverMovePlan)
+	public synchronized void moveServer(ServerName server,String sourceGroup, String targetGroup)
 			throws IOException, InterruptedException {
-		if (serverMovePlan == null) {
+		if ((server == null) || (StringUtils.isEmpty(targetGroup))) {
 			throw new IOException(
-					"The region server move plan found to be null.");
+					"The region server or the target to move found to be null.");
 		}
-		removeServer(serverMovePlan.getServername());
-		addServer(serverMovePlan.getServername(),serverMovePlan.getTargetGroup());
-		LOG.info("Successfully move "
-					+ serverMovePlan.getServername().getHostAndPort()
-					+ " from group " + serverMovePlan.getSourceGroup()
-					+ " to group " + serverMovePlan.getTargetGroup());
-		writeConfig();
+		try {
+			removeServer(server);
+			addServer(server, targetGroup);
+			LOG.info("Successfully move " + server.getHostAndPort()
+					+ " to group " + targetGroup);
+			writeConfig();
+		} catch (Exception exp) {
+			LOG.info(
+					"Exception occured while move of the server "
+							+ server.getHostAndPort(), exp);
+			addServer(server,sourceGroup);
+		}
 	}
 
 	private  void enableTable(HMaster master, final byte [] tableName)
@@ -580,7 +588,7 @@ public class GroupInfoManager {
     	return assignedServers;
     }
 
-	/**
+/*	*//**
 	 * Stores the plan for the move of an individual server.
 	 *
 	 * Contains {@link ServerName} for the server being moved, {@link GroupInfo}
@@ -589,7 +597,7 @@ public class GroupInfoManager {
 	 *
 	 * The comparable implementation of this class compares only the ServerName
 	 * information and not the source/dest group info.
-	 */
+	 *//*
 	public static class ServerPlan implements Comparable<ServerPlan> {
 		private ServerName servername;
 		private String sourceGroup;
@@ -602,56 +610,56 @@ public class GroupInfoManager {
 			this.targetGroup = targetGroup;
 		}
 
-		/**
+		*//**
 		 * Get the ServerName
 		 *
 		 * @return
-		 */
+		 *//*
 		public ServerName getServername() {
 			return servername;
 		}
 
-		/**
+		*//**
 		 * Set the serverName
 		 *
 		 * @param servername
-		 */
+		 *//*
 		public void setServerName(ServerName servername) {
 			this.servername = servername;
 		}
 
-		/**
+		*//**
 		 * Get the source group.
 		 *
 		 * @return
-		 */
+		 *//*
 		public String getSourceGroup() {
 			return sourceGroup;
 		}
 
-		/**
+		*//**
 		 * Set the source group.
 		 *
 		 * @param sourceGroup
-		 */
+		 *//*
 		public void setSourceGroup(String sourceGroup) {
 			this.sourceGroup = sourceGroup;
 		}
 
-		/**
+		*//**
 		 * Get the target group.
 		 *
 		 * @return
-		 */
+		 *//*
 		public String getTargetGroup() {
 			return targetGroup;
 		}
 
-		/**
+		*//**
 		 * Set the target group.
 		 *
 		 * @param targetGroup
-		 */
+		 *//*
 		public void setTargetGroup(String targetGroup) {
 			this.targetGroup = targetGroup;
 		}
@@ -673,5 +681,5 @@ public class GroupInfoManager {
 		public int hashCode() {
 			return servername.hashCode();
 		}
-	}
+	}*/
 }
