@@ -35,7 +35,6 @@ import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.client.HTable;
-import org.apache.hadoop.hbase.master.GroupInfoManager.ServerPlan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.junit.AfterClass;
@@ -44,7 +43,7 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category(MediumTests.class)
-public class TestRSGrouping {
+public class TestGroupInfoManager {
 	private static HBaseTestingUtility TEST_UTIL;
 	private static HMaster master;
 
@@ -97,11 +96,9 @@ public class TestRSGrouping {
 		assertTrue(adminInfo.getServers().size() == 1);
 		assertTrue(appInfo.getServers().size() == 1);
 		assertTrue(dInfo.getServers().size() == 2);
-		groupManager.moveServer(new ServerPlan(appInfo.getServers().get(0),
-				"application1", GroupInfo.DEFAULT_GROUP));
+		groupManager.moveServer(appInfo.getServers().get(0),"application1", GroupInfo.DEFAULT_GROUP);
 		groupManager.deleteGroup("application1");
-		groupManager.moveServer(new ServerPlan(adminInfo.getServers().get(0),
-				"admin", GroupInfo.DEFAULT_GROUP));
+		groupManager.moveServer(adminInfo.getServers().get(0),"admin", GroupInfo.DEFAULT_GROUP);
 		groupManager.deleteGroup("admin");
 		groupManager.refresh();
 		assertTrue(groupManager.getExistingGroups().size() == 1);
@@ -154,45 +151,6 @@ public class TestRSGrouping {
 				.getConfiguration()), GroupInfoManager.GROUP_INFO_FILE_NAME), true);
 	}
 
-/*	@Test
-	public void testDefaultGroupOperations() throws IOException, InterruptedException {
-		GroupInfoManager groupManager = new GroupInfoManager(master);
-		String userTableGroup = "usertables";
-		GroupInfo dInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		assertFalse(groupManager.deleteGroup(GroupInfo.DEFAULT_GROUP));
-
-		// Now create a new group and try moving all the four region servers
-		// to the new group.
-		assertTrue(groupManager.addGroup(userTableGroup));
-		Iterator<ServerName> itr = dInfo.getServers().iterator();
-		master.getAssignmentManager().refreshBalancer();
-		groupManager.moveServer(new ServerPlan(itr.next(),
-				GroupInfo.DEFAULT_GROUP, userTableGroup));
-		master.getAssignmentManager().refreshBalancer();
-		groupManager.moveServer(new ServerPlan(itr.next(),
-				GroupInfo.DEFAULT_GROUP, userTableGroup));
-		master.getAssignmentManager().refreshBalancer();
-		groupManager.moveServer(new ServerPlan(itr.next(),
-				GroupInfo.DEFAULT_GROUP, userTableGroup));
-		master.getAssignmentManager().refreshBalancer();
-		boolean exceptionCaught = false;
-		try{
-		groupManager.moveServer(new ServerPlan(itr.next(),
-				GroupInfo.DEFAULT_GROUP, userTableGroup));
-		}catch (Exception exp){
-			if(exp instanceof IOException){
-				exceptionCaught = true;
-				assertTrue(exp.getMessage().contains(
-						"The default group should contain atleast one server."));
-			}
-		} finally {
-			assertTrue(exceptionCaught);
-		}
-		TEST_UTIL.getDFSCluster().getFileSystem().delete(new Path(FSUtils.getRootDir(master
-				.getConfiguration()), GroupInfoManager.GROUP_INFO_FILE_NAME), true);
-	}
-*/
-
 	@Test
 	public void testRegionMove() throws IOException, InterruptedException{
 		GroupInfoManager groupManager = new GroupInfoManager(master);
@@ -239,8 +197,7 @@ public class TestRSGrouping {
 		gManager.addGroup(groupName);
 		Iterator<ServerName> itr = defaultInfo.getServers().iterator();
 		for (int i = 0; i < servers; i++) {
-			gManager.moveServer(new ServerPlan(itr.next(),
-					GroupInfo.DEFAULT_GROUP, groupName));
+			gManager.moveServer(itr.next(),GroupInfo.DEFAULT_GROUP, groupName);
 		}
 		gManager.refresh();
 		assertTrue(gManager.getGroupInformation(groupName).getServers().size() >= servers);
