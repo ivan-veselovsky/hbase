@@ -27,15 +27,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.TreeSet;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.avro.generated.HBase;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.ipc.HRegionInterface;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.junit.AfterClass;
@@ -48,6 +53,7 @@ public class TestGroupInfoManager {
 	private static HBaseTestingUtility TEST_UTIL;
 	private static HMaster master;
 	private static Random rand;
+  private static HBaseAdmin admin;
 	private static String groupPrefix = "Group-";
 	private static String tablePrefix = "TABLE-";
 	private static String familyPrefix = "FAMILY-";
@@ -58,11 +64,13 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getConfiguration().set(
 				HConstants.HBASE_MASTER_LOADBALANCER_CLASS,
 				GroupBasedLoadBalancer.class.getName());
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
+        GroupMasterObserver.class.getName());
 		TEST_UTIL.startMiniCluster(4);
 		MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
 		master = cluster.getMaster();
 		rand = new Random();
-
+    admin = TEST_UTIL.getHBaseAdmin();
 	}
 
 	@AfterClass
@@ -72,10 +80,10 @@ public class TestGroupInfoManager {
 
 	@Test
 	public void testBasicStartUp() throws IOException {
-		GroupInfoManager groupManager = new GroupInfoManager(master);
+		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
 		GroupInfo defaultInfo = groupManager
-				.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		defaultInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
+				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		// Assignment of root and meta regions.
 		assertTrue(groupManager.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP)
@@ -83,42 +91,38 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManager.GROUP_INFO_FILE_NAME), true);
+						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
 	public void testSimpleRegionServerMove() throws IOException,
 			InterruptedException {
-		GroupInfoManager groupManager = new GroupInfoManager(master);
+		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
 		String groupOne = groupPrefix + rand.nextInt();
 		addGroup(groupManager, groupOne, 1);
-		groupManager.refresh();
 		GroupInfo dInfo = groupManager
-				.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		master.getAssignmentManager().refreshBalancer();
+				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		String groupTwo = groupPrefix + rand.nextInt();
 		addGroup(groupManager, groupTwo, 1);
 		// Force the group info manager to read group information from disk.
-		groupManager.refresh();
 		assertTrue(groupManager.getExistingGroups().size() == 3);
-		dInfo = groupManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
-		GroupInfo appInfo = groupManager.getGroupInformation(groupTwo);
-		GroupInfo adminInfo = groupManager.getGroupInformation(groupOne);
+		dInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		GroupInfo appInfo = groupManager.getGroupInfo(groupTwo);
+		GroupInfo adminInfo = groupManager.getGroupInfo(groupOne);
 		assertTrue(adminInfo.getServers().size() == 1);
 		assertTrue(appInfo.getServers().size() == 1);
 		assertTrue(dInfo.getServers().size() == 2);
-		groupManager.moveServer(appInfo.getServers().get(0), groupTwo,
-				GroupInfo.DEFAULT_GROUP);
-		groupManager.deleteGroup(groupTwo);
-		groupManager.moveServer(adminInfo.getServers().get(0), groupOne,
-				GroupInfo.DEFAULT_GROUP);
-		groupManager.deleteGroup(groupOne);
-		groupManager.refresh();
+		groupManager.moveServer(appInfo.getServers().first(), groupTwo,
+        GroupInfo.DEFAULT_GROUP);
+		groupManager.removeGroup(groupTwo);
+		groupManager.moveServer(adminInfo.getServers().first(), groupOne,
+        GroupInfo.DEFAULT_GROUP);
+		groupManager.removeGroup(groupOne);
 		assertTrue(groupManager.getExistingGroups().size() == 1);
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManager.GROUP_INFO_FILE_NAME), true);
+						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
@@ -126,10 +130,9 @@ public class TestGroupInfoManager {
 		String tableName = tablePrefix + rand.nextInt();
 		byte[] TABLENAME = Bytes.toBytes(tableName);
 		byte[] FAMILYNAME = Bytes.toBytes(familyPrefix + rand.nextInt());
-		GroupInfoManager groupManager = new GroupInfoManager(master);
+		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
 		String newGroupName = groupPrefix + rand.nextInt();
 		addGroup(groupManager, newGroupName, 2);
-		groupManager.refresh();
 
 		HTable ht = TEST_UTIL.createTable(TABLENAME, FAMILYNAME);
 		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
@@ -140,13 +143,17 @@ public class TestGroupInfoManager {
 		List<HRegionInfo> regionList = TEST_UTIL.getHBaseAdmin()
 				.getTableRegions(TABLENAME);
 		assertTrue(regionList.size() > 0);
-		GroupInfo tableGrp = groupManager.getGroupInfoOfTable(tableName);
+		GroupInfo tableGrp = groupManager.getGroupInfoOfTable(Bytes.toBytes(tableName));
 		assertTrue(tableGrp.getName().equals(GroupInfo.DEFAULT_GROUP));
 
-		master.getAssignmentManager().refreshBalancer();
-		groupManager.moveTableToGroup(newGroupName, tableName);
-		groupManager.refresh();
-		GroupInfo newTableGrp = groupManager.getGroupInfoOfTable(tableName);
+
+    admin.disableTable(TABLENAME);
+    HTableDescriptor desc = admin.getTableDescriptor(TABLENAME);
+    GroupInfo.setGroupString(newGroupName, desc);
+    admin.modifyTable(TABLENAME,desc);
+    admin.enableTable(TABLENAME);
+    desc = admin.getTableDescriptor(TABLENAME);
+		GroupInfo newTableGrp = groupManager.getGroupInfo(GroupInfo.getGroupString(desc));
 		assertTrue(newTableGrp.getName().equals(newGroupName));
 		Map<String, Map<ServerName, List<HRegionInfo>>> tableRegionAssignMap = master
 				.getAssignmentManager().getAssignmentsByTable();
@@ -155,7 +162,7 @@ public class TestGroupInfoManager {
 				.get(tableName);
 		for (ServerName rs : serverMap.keySet()) {
 			if (serverMap.get(rs).size() > 0) {
-				assertTrue(newTableGrp.contains(rs));
+				assertTrue(newTableGrp.containsServer(rs.getHostAndPort()));
 			}
 		}
 
@@ -166,19 +173,17 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManager.GROUP_INFO_FILE_NAME), true);
+						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
 	public void testRegionMove() throws IOException, InterruptedException {
-		GroupInfoManager groupManager = new GroupInfoManager(master);
+		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
 		String newGroupName = groupPrefix + rand.nextInt();
 		addGroup(groupManager, newGroupName, 1);
-		groupManager.refresh();
 		String tableNameOne = tablePrefix + rand.nextInt();
 		byte[] tableOneBytes = Bytes.toBytes(tableNameOne);
 		byte[] familyOneBytes = Bytes.toBytes(familyPrefix + rand.nextInt());
-		master.getAssignmentManager().refreshBalancer();
 		HTable ht = TEST_UTIL.createTable(tableOneBytes, familyOneBytes);
 		// All the regions created below will be assigned to the default group.
 		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
@@ -186,15 +191,13 @@ public class TestGroupInfoManager {
 		TEST_UTIL.waitUntilAllRegionsAssigned(5);
 		List<HRegionInfo> regions = groupManager
 				.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
-		assertTrue(regions.size() >= 5);
-		HRegionInfo region = regions.get(0);
+		assertTrue(regions.size()+">="+5,regions.size() >= 5);
+		HRegionInfo region = regions.get(regions.size()-1);
 		// Lets move this region to newGroupName group.
-		master.getAssignmentManager().refreshBalancer();
-		ServerName tobeAssigned = groupManager
-				.getGroupInformation(newGroupName).getServers().get(0);
+		ServerName tobeAssigned = ServerName.parseServerName(groupManager
+				.getGroupInfo(newGroupName).getServers().first());
 		master.move(region.getEncodedNameAsBytes(),
-				Bytes.toBytes(tobeAssigned.toString()));
-		groupManager.refresh();
+        Bytes.toBytes(tobeAssigned.toString()));
 
 		while (master.getAssignmentManager().getRegionsInTransition().size() > 0) {
 			Thread.sleep(10);
@@ -203,28 +206,27 @@ public class TestGroupInfoManager {
 		List<HRegionInfo> updatedRegions = groupManager
 				.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() == updatedRegions.size());
-		assertFalse(groupManager.getRegionsOfServer(tobeAssigned).contains(
-				region));
+    HRegionInterface rs = admin.getConnection().getHRegionConnection(tobeAssigned.getHostname(),tobeAssigned.getPort());
+		assertFalse(rs.getOnlineRegions().contains(region));
 		TEST_UTIL.deleteTable(tableOneBytes);
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManager.GROUP_INFO_FILE_NAME), true);
+						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
 	}
 
-	static void addGroup(GroupInfoManager gManager, String groupName,
+	static void addGroup(GroupAdmin gManager, String groupName,
 			int servers) throws IOException, InterruptedException {
 		GroupInfo defaultInfo = gManager
-				.getGroupInformation(GroupInfo.DEFAULT_GROUP);
+				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo != null);
 		assertTrue(defaultInfo.getServers().size() >= servers);
-		gManager.addGroup(groupName);
-		Iterator<ServerName> itr = defaultInfo.getServers().iterator();
+		gManager.addGroup(groupName, new TreeSet<String>());
+		Iterator<String> itr = defaultInfo.getServers().descendingIterator();
 		for (int i = 0; i < servers; i++) {
 			gManager.moveServer(itr.next(), GroupInfo.DEFAULT_GROUP, groupName);
 		}
-		gManager.refresh();
-		assertTrue(gManager.getGroupInformation(groupName).getServers().size() >= servers);
+		assertTrue(gManager.getGroupInfo(groupName).getServers().size() >= servers);
 	}
 
 }

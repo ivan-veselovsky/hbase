@@ -27,9 +27,15 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -44,8 +50,9 @@ import com.google.common.collect.Lists;
  */
 public class GroupInfo{
 
-	private HashSet<ServerName> serverNames;
+	private NavigableSet<String> servers;
 	public static final String DEFAULT_GROUP = "default";
+  public static final String TRANSITION_GROUP_PREFIX = "_transition_";
 	public static final byte[] GROUP_KEY = Bytes.toBytes("rs_group");
 	private String name;
 
@@ -55,8 +62,13 @@ public class GroupInfo{
 	}
 
 	public GroupInfo() {
-		this.serverNames = new HashSet<ServerName>();
+		this.servers = new TreeSet<String>();
 	}
+
+  public GroupInfo(GroupInfo src) {
+    servers = Sets.newTreeSet(src.getServers());
+    name = src.getName();
+  }
 
 	/**
 	 * Get group name.
@@ -68,33 +80,25 @@ public class GroupInfo{
 	}
 
 	/**
-	 * Checks based of equivalence of host name and port.
-	 *
-	 * @param server
-	 * @return true if the server is in this group
-	 */
-	public boolean contains(ServerName server) {
-		ServerName actual = ServerName.findServerWithSameHostnamePort(
-				this.serverNames, server);
-		return actual == null ? false : true;
-	}
-
-	/**
 	 * Adds the server to the group.
 	 *
-	 * @param server the server
+	 * @param hostPort the server
 	 */
-	public void add(ServerName server){
-		this.serverNames.add(server);
+	public void addServer(String hostPort){
+		this.servers.add(hostPort);
 	}
 
 	/**
 	 * Adds a group of servers.
 	 *
-	 * @param servers the servers
+	 * @param hostPort the servers
 	 */
-	public void addAll(List<ServerName> servers){
-		this.serverNames.addAll(servers);
+	public void addAll(Collection<String> hostPort){
+		this.servers.addAll(hostPort);
+	}
+
+	public boolean containsServer(String hostPort) {
+    return servers.contains(hostPort);
 	}
 
 	/**
@@ -103,13 +107,13 @@ public class GroupInfo{
 	 * @param serverList The list to check for containment.
 	 * @return true, if successful
 	 */
-	public boolean contains(List<ServerName> serverList) {
+	public boolean containsServer(NavigableSet<String> serverList) {
 		if (serverList.size() == 0) {
 			return false;
 		} else {
 			boolean contains = true;
-			for (ServerName server : serverList) {
-				contains = contains && this.contains(server);
+			for (String hostPort : serverList) {
+				contains = contains && this.getServers().contains(hostPort);
 				if (!contains)
 					return contains;
 			}
@@ -123,8 +127,8 @@ public class GroupInfo{
 	 *
 	 * @return
 	 */
-	public List<ServerName> getServers() {
-		return Lists.newArrayList(this.serverNames);
+	public NavigableSet<String> getServers() {
+		return this.servers;
 	}
 
 	/**
@@ -133,21 +137,21 @@ public class GroupInfo{
 	 * @param out
 	 * @throws IOException
 	 */
-	private void write(BufferedWriter out) throws IOException {
+	public void write(BufferedWriter out) throws IOException {
 		StringBuffer sb = new StringBuffer();
 		sb.append(getName());
 		sb.append("\t");
-		for (ServerName sName : serverNames) {
+		for (String sName : servers) {
 			if (sb.length() != (getName().length() + 1)) {
 				sb.append(",");
 			}
-			sb.append(sName.getHostAndPort());
+			sb.append(sName);
 		}
 		out.write(sb.toString());
 		out.newLine();
 	}
 
-	private boolean readFields(String line) throws IOException {
+	public boolean readFields(String line) throws IOException {
 		boolean isWellFormed = false;
 		String[] groupSplit = line.split("\t");
 		switch(groupSplit.length) {
@@ -158,8 +162,7 @@ public class GroupInfo{
 				String[] hostPortPairs = groupSplit[1].trim().split(",");
 				for (String sName : hostPortPairs) {
 					if (StringUtils.isNotEmpty(sName)) {
-						ServerName name = new ServerName(sName.trim(), -1);
-						this.serverNames.add(name);
+						this.servers.add(sName);
 					}
 				}
 				isWellFormed = true;
@@ -170,77 +173,37 @@ public class GroupInfo{
 	}
 
 	/**
-	 * Read a list of GroupInfo.
-	 *
-	 * @param in
-	 *            DataInput
-	 * @return
-	 * @throws IOException
-	 */
-	public static List<GroupInfo> readGroups(final FSDataInputStream in)
-			throws IOException {
-		List<GroupInfo> groupList = new ArrayList<GroupInfo>();
-		BufferedReader br = new BufferedReader(new InputStreamReader(in));
-		String line = null;
-		try {
-			while ((line = br.readLine()) != null) {
-				GroupInfo group = new GroupInfo();
-				if (group.readFields(line)) {
-					if (group.getName().equalsIgnoreCase(DEFAULT_GROUP) == false) {
-						groupList.add(group);
-					}
-				}
-			}
-		} finally {
-			br.close();
-		}
-		return groupList;
-	}
-
-	/**
-	 * Write a list of group information out.
-	 *
-	 * @param groups
-	 * @param out
-	 * @throws IOException
-	 */
-	public static void writeGroups(Collection<GroupInfo> groups, FSDataOutputStream out)
-			throws IOException {
-		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(out));
-		try {
-			for (GroupInfo group : groups) {
-				group.write(bw);
-			}
-		} finally {
-			bw.close();
-		}
-	}
-
-	/**
 	 * Remove a server from this group.
 	 *
-	 * @param server
+	 * @param hostPort
 	 */
-	public void remove(ServerName server) {
-		ServerName actual = ServerName.findServerWithSameHostnamePort(
-				this.serverNames, server);
-		if (actual != null) {
-			this.serverNames.remove(actual);
-		}
+	public boolean removeServer(String hostPort) {
+    return this.servers.remove(hostPort);
 	}
 
 	/**
 	 * Get group attribute from a table descriptor.
 	 *
-	 * @param HTableDescriptor
+	 * @param des
 	 * @return The group name of the table.
 	 */
 	public static String getGroupString(HTableDescriptor des) {
 		byte[] gbyte = des.getValue(GROUP_KEY);
 		if (gbyte != null) {
 			return Bytes.toString(des.getValue(GROUP_KEY));
-		} else
+		} else {
 			return GroupInfo.DEFAULT_GROUP;
+    }
+	}
+
+
+	public static void setGroupString(String group, HTableDescriptor des) {
+    if(group.equals(DEFAULT_GROUP)) {
+      des.remove(group);
+    }
+    else {
+		  des.setValue(GROUP_KEY, Bytes.toBytes(group));
+    }
 	}
 
 	@Override
@@ -250,7 +213,7 @@ public class GroupInfo{
 		sb.append(this.name);
 		sb.append("-");
 		sb.append(" Severs:");
-		sb.append(this.serverNames + "}");
+		sb.append(this.servers+ "}");
 		return sb.toString();
 
 	}
@@ -261,7 +224,7 @@ public class GroupInfo{
 		int result = 1;
 		result = prime * result + ((name == null) ? 0 : name.hashCode());
 		result = prime * result
-				+ ((serverNames == null) ? 0 : serverNames.hashCode());
+				+ ((servers == null) ? 0 : servers.hashCode());
 		return result;
 	}
 
@@ -279,12 +242,12 @@ public class GroupInfo{
 				return false;
 		} else if (!name.equals(other.name))
 			return false;
-		if (serverNames == null) {
-			if (other.serverNames != null)
+		if (servers == null) {
+			if (other.servers != null)
 				return false;
-		} else if (serverNames.size() != other.getServers().size()){
+		} else if (servers.size() != other.getServers().size()){
 			return false;
-		}else if(!contains(other.getServers())){
+		}else if(!containsServer(other.getServers())){
 			return false;
 		}
 

@@ -258,7 +258,7 @@ Server {
     // Creation of a HSA will force a resolve.
     InetSocketAddress initialIsa = new InetSocketAddress(hostname, port);
     if (initialIsa.getAddress() == null) {
-      throw new IllegalArgumentException("Failed resolve of " + this.isa);
+      throw new IllegalArgumentException("Failed resolve of " + initialIsa);
     }
     int numHandlers = conf.getInt("hbase.master.handler.count",
       conf.getInt("hbase.regionserver.handler.count", 25));
@@ -1706,7 +1706,15 @@ Server {
     checkInitialized();
     Pair<HRegionInfo, ServerName> pair =
       MetaReader.getRegion(this.catalogTracker, regionName);
-    if (pair == null) throw new UnknownRegionException(Bytes.toString(regionName));
+    if (Bytes.equals(HRegionInfo.ROOT_REGIONINFO.getRegionName(),regionName)) {
+      try {
+        pair = new Pair<HRegionInfo, ServerName>(HRegionInfo.ROOT_REGIONINFO, this.catalogTracker.getRootLocation());
+      } catch (InterruptedException e) {
+        throw new IOException(e);
+      }
+    }
+    if (pair == null) throw new UnknownRegionException(
+        Bytes.toString(HRegionInfo.ROOT_REGIONINFO.getRegionName())+"<-->"+Bytes.toString(regionName));
     HRegionInfo hri = pair.getFirst();
     if (cpHost != null) {
       if (cpHost.preUnassign(hri, force)) {
