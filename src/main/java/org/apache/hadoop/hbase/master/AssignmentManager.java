@@ -3265,10 +3265,6 @@ public class AssignmentManager extends ZooKeeperListener {
     unassign(plan.getRegionInfo());
   }
 
-  void refreshBalancer(){
-	  this.balancer.refresh();
-  }
-
   /**
    * Run through remaining regionservers and unassign all catalog regions.
    */

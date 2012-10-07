@@ -24,14 +24,17 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.LargeTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.RetriesExhaustedException;
@@ -49,6 +52,8 @@ public class TestRSGroupWithDeadServers {
 	private static HBaseTestingUtility TEST_UTIL;
 	private static HMaster master;
 	private static Random rand;
+  private static HBaseAdmin admin;
+
 	@BeforeClass
 	public static void setUp() throws Exception {
 		TEST_UTIL = new HBaseTestingUtility();
@@ -63,7 +68,7 @@ public class TestRSGroupWithDeadServers {
 		MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
 		master = cluster.getMaster();
 		rand = new Random();
-
+    admin = TEST_UTIL.getHBaseAdmin();
 	}
 
 	@AfterClass
@@ -74,47 +79,49 @@ public class TestRSGroupWithDeadServers {
 	@Test
 	public void testGroupWithOnlineServers() throws IOException, InterruptedException{
 		String newRSGroup = "group-" + rand.nextInt();
-		GroupInfoManager gManager = new GroupInfoManager(master);
+		GroupAdmin groupAdmin = new GroupAdmin(master.getConfiguration());
 		String tableNameTwo = "TABLE-" + rand.nextInt();
 		byte[] tableTwoBytes = Bytes.toBytes(tableNameTwo);
 		String familyName = "family" + rand.nextInt();
 		byte[] familyTwoBytes = Bytes.toBytes(familyName);
 		int NUM_REGIONS = 4;
 
-		GroupInfo defaultInfo = gManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
+		GroupInfo defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
-		TestGroupInfoManager.addGroup(gManager, newRSGroup, 2);
-		gManager.refresh();
-		defaultInfo = gManager.getGroupInformation(GroupInfo.DEFAULT_GROUP);
+		TestGroupInfoManager.addGroup(groupAdmin, newRSGroup, 2);
+		defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 2);
-		assertTrue(gManager.getGroupInformation(newRSGroup).getServers().size() == 2);
-		master.getAssignmentManager().refreshBalancer();
+		assertTrue(groupAdmin.getGroupInfo(newRSGroup).getServers().size() == 2);
 		HTable ht = TEST_UTIL.createTable(tableTwoBytes, familyTwoBytes);
 		// All the regions created below will be assigned to the default group.
 		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
 				familyTwoBytes, NUM_REGIONS) == NUM_REGIONS);
 		TEST_UTIL.waitUntilAllRegionsAssigned(NUM_REGIONS);
-		List<HRegionInfo> regions = gManager.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+		List<HRegionInfo> regions = groupAdmin.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() >= NUM_REGIONS);
-		master.getAssignmentManager().refreshBalancer();
-		gManager.moveTableToGroup(newRSGroup, tableNameTwo);
+    //move table to new group
+    admin.disableTable(tableNameTwo);
+    HTableDescriptor desc = admin.getTableDescriptor(tableTwoBytes);
+    GroupInfo.setGroupString(newRSGroup, desc);
+    admin.modifyTable(tableTwoBytes, desc);
+    admin.enableTable(tableTwoBytes);
+
 		TEST_UTIL.waitUntilAllRegionsAssigned(NUM_REGIONS);
 		//Move the ROOT and META regions to default group.
-		ServerName serverForRoot = ServerName.findServerWithSameHostnamePort(master.getServerManager()
-				.getOnlineServersList(), defaultInfo.getServers()
-				.get(0));
+		ServerName serverForRoot =
+        ServerName.findServerWithSameHostnamePort(master.getServerManager().getOnlineServersList(),
+            ServerName.parseServerName(defaultInfo.getServers().first()));
 		master.move(HRegionInfo.ROOT_REGIONINFO.getEncodedNameAsBytes(), Bytes.toBytes(serverForRoot.toString()));
 		master.move(HRegionInfo.FIRST_META_REGIONINFO.getEncodedNameAsBytes(), Bytes.toBytes(serverForRoot.toString()));
 		while (master.getAssignmentManager().isRegionsInTransition()){
 			Thread.sleep(10);
 		}
-		master.getAssignmentManager().refreshBalancer();
-		List<HRegionInfo> newGrpRegions = gManager.getRegionsOfGroup(newRSGroup);
+		List<HRegionInfo> newGrpRegions = groupAdmin.getRegionsOfGroup(newRSGroup);
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		MiniHBaseCluster hbaseCluster = TEST_UTIL.getHBaseCluster();
 		// Now we kill all the region servers in the new group.
-		List<ServerName> serverNames = gManager.getGroupInformation(newRSGroup).getServers();
-		for (ServerName sName : serverNames) {
+		Set<String> serverNames = groupAdmin.getGroupInfo(newRSGroup).getServers();
+		for (String sName : serverNames) {
 			int serverNumber = getServerNumber(
 					hbaseCluster.getRegionServerThreads(), sName);
 			assert (serverNumber != -1);
@@ -124,30 +131,28 @@ public class TestRSGroupWithDeadServers {
 		while (master.getAssignmentManager().getRegionsInTransition().size() < NUM_REGIONS){
 			Thread.sleep(5);
 		}
-		gManager.refresh();
-		newGrpRegions = gManager.getRegionsOfGroup(newRSGroup);
+		newGrpRegions = groupAdmin.getRegionsOfGroup(newRSGroup);
 		assertTrue(newGrpRegions.size() == 0);
-		regions = gManager.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+		regions = groupAdmin.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() == 2);
 		scanTableForNegativeResults(ht);
-		startServersAndMove(gManager,1,newRSGroup);
-		master.getAssignmentManager().refreshBalancer();
+		startServersAndMove(groupAdmin, 1, newRSGroup);
 		while(master.getAssignmentManager().isRegionsInTransition()){
 			Thread.sleep(5);
 		}
 		scanTableForPositiveResults(ht);
-		newGrpRegions = gManager.getRegionsOfGroup(newRSGroup);
+		newGrpRegions = groupAdmin.getRegionsOfGroup(newRSGroup);
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		TEST_UTIL.deleteTable(tableTwoBytes);
 		TEST_UTIL.getDFSCluster().getFileSystem().delete(new Path(FSUtils.getRootDir(master
-				.getConfiguration()), GroupInfoManager.GROUP_INFO_FILE_NAME), true);
+				.getConfiguration()), GroupInfoStore.GROUP_INFO_FILE_NAME), true);
 
 	}
 
-	private int getServerNumber(List<JVMClusterUtil.RegionServerThread> servers, ServerName sName){
+	private int getServerNumber(List<JVMClusterUtil.RegionServerThread> servers, String sName){
 		int i = 0;
 		for(JVMClusterUtil.RegionServerThread rs : servers){
-			if(ServerName.isSameHostnameAndPort(rs.getRegionServer().getServerName(), sName)){
+			if(sName.equals(rs.getRegionServer().getServerName().getHostAndPort())){
 				return i;
 			}
 			i++;
@@ -184,7 +189,7 @@ public class TestRSGroupWithDeadServers {
 		}
 	}
 
-	private void startServersAndMove(GroupInfoManager gManager, int numServers,
+	private void startServersAndMove(GroupAdmin groupAdmin, int numServers,
 			String groupName) throws IOException, InterruptedException {
 		MiniHBaseCluster hbaseCluster = TEST_UTIL.getHBaseCluster();
 		ServerName newServer;
@@ -196,11 +201,11 @@ public class TestRSGroupWithDeadServers {
 					.getServerManager().getOnlineServersList(), newServer) == null) {
 				Thread.sleep(5);
 			}
-			assertTrue(gManager.getGroupInformation(GroupInfo.DEFAULT_GROUP)
-					.contains(newServer));
-			gManager.moveServer(newServer, GroupInfo.DEFAULT_GROUP, groupName);
-			assertTrue(gManager.getGroupInformation(groupName).contains(
-					newServer));
+			assertTrue(groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP)
+          .containsServer(newServer.getHostAndPort()));
+			groupAdmin.moveServer(newServer.getHostAndPort(), GroupInfo.DEFAULT_GROUP, groupName);
+			assertTrue(groupAdmin.getGroupInfo(groupName).containsServer(
+          newServer.getHostAndPort()));
 		}
 	}
 

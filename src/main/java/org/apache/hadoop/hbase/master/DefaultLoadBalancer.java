@@ -768,9 +768,4 @@ public class DefaultLoadBalancer implements LoadBalancer {
 		}
   }
 
-
-    @Override
-	public void refresh() {
-	}
-
 }
