@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.commons.logging.Log;
@@ -24,7 +23,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 	private Configuration config;
 	private ClusterStatus status;
 	private MasterServices services;
-	private GroupInfoStore groupStore;
+	private GroupInfoManagerImpl groupManager;
 	private DefaultLoadBalancer internalBalancer = new DefaultLoadBalancer();
 
 	@Override
@@ -49,7 +48,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		this.services = masterServices;
 		internalBalancer.setMasterServices(masterServices);
 		try {
-			this.groupStore = new GroupInfoStore(services.getConfiguration(), services);
+			this.groupManager = new GroupInfoManagerImpl(services.getConfiguration(), services);
 		} catch (IOException e) {
 			LOG.warn("IOException while creating GroupInfoManagerImpl.", e);
 		}
@@ -84,7 +83,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       Map<ServerName, List<HRegionInfo>> assignments = new TreeMap<ServerName, List<HRegionInfo>>();
       ArrayListMultimap<String, HRegionInfo> regionGroup = groupRegions(regions);
       for (String groupKey : regionGroup.keys()) {
-        GroupInfo info = groupStore.getGroupInfo(groupKey);
+        GroupInfo info = groupManager.getGroupInfo(groupKey);
         assignments.putAll(this.internalBalancer.roundRobinAssignment(
             regionGroup.get(groupKey),getServerToAssign(info, servers)));
       }
@@ -107,7 +106,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
         if (misplacedRegions.contains(region)) {
           regions.remove(region);
         } else {
-          GroupInfo info = groupStore.getGroupInfo(region
+          GroupInfo info = groupManager.getGroupInfo(region
               .getTableNameAsString());
           rGroup.put(info.getName(), region);
         }
@@ -118,7 +117,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       for (String key : rGroup.keys()) {
         Map<HRegionInfo, ServerName> currentAssignmentMap = new TreeMap<HRegionInfo, ServerName>();
         List<HRegionInfo> regionList = rGroup.get(key);
-        GroupInfo info = groupStore.getGroupInfo(key);
+        GroupInfo info = groupManager.getGroupInfo(key);
         List<ServerName> candidateList = getServerToAssign(info, servers);
         for (HRegionInfo region : regionList) {
           currentAssignmentMap.put(region, regions.get(region));
@@ -128,7 +127,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       }
 
       for (HRegionInfo region : misplacedRegions) {
-        GroupInfo info = groupStore.getGroupInfo(region
+        GroupInfo info = groupManager.getGroupInfo(region
             .getTableNameAsString());
         List<ServerName> candidateList = getServerToAssign(info, servers);
         ServerName server = this.internalBalancer.randomAssignment(region,
@@ -152,7 +151,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       ArrayListMultimap<String, HRegionInfo> regionGroups = groupRegions(regions);
       for (String key : regionGroups.keys()) {
         List<HRegionInfo> regionsOfSameGroup = regionGroups.get(key);
-        GroupInfo info = groupStore.getGroupInfo(key);
+        GroupInfo info = groupManager.getGroupInfo(key);
         List<ServerName> candidateList = getServerToAssign(info, servers);
         assignments.putAll(this.internalBalancer.immediateAssignment(
             regionsOfSameGroup, candidateList));
@@ -171,7 +170,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       String tableName = region.getTableNameAsString();
       List<ServerName> candidateList;
       GroupInfo groupInfo =
-          groupStore.getGroupInfoOfTable(services.getTableDescriptors().get(region.getTableName()));
+          groupManager.getGroupInfoOfTable(services.getTableDescriptors().get(region.getTableName()));
       candidateList = getServerToAssign(groupInfo, servers);
 
       if ((prefferedServer == null) ||
@@ -228,7 +227,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		ArrayListMultimap<String, HRegionInfo> regionGroup = ArrayListMultimap
 				.create();
 		for (HRegionInfo region : regionList) {
-			regionGroup.put(groupStore.getGroupInfoOfTable(services.getTableDescriptors().get(region.getTableName())).getName(), region);
+			regionGroup.put(groupManager.getGroupInfoOfTable(services.getTableDescriptors().get(region.getTableName())).getName(), region);
 		}
 		return regionGroup;
 	}
@@ -238,7 +237,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		List<HRegionInfo> misplacedRegions = new ArrayList<HRegionInfo>();
 		for (HRegionInfo region : regions.keySet()) {
 			ServerName assignedServer = regions.get(region);
-			GroupInfo info = groupStore.getGroupInfoOfTable(region.getTableDesc());
+			GroupInfo info = groupManager.getGroupInfoOfTable(region.getTableDesc());
 			if(!info.containsServer(assignedServer.getHostAndPort())) {
 				misplacedRegions.add(region);
 			}

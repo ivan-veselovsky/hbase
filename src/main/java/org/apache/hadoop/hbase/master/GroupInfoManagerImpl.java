@@ -31,8 +31,8 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class GroupInfoStore {
-	private static final Log LOG = LogFactory.getLog(GroupInfoStore.class);
+public class GroupInfoManagerImpl {
+	private static final Log LOG = LogFactory.getLog(GroupInfoManagerImpl.class);
 
   public static final String GROUP_INFO_FILE_NAME = ".rsgroupinfo";
 
@@ -46,7 +46,7 @@ public class GroupInfoStore {
   private ZooKeeperWatcher zkw;
 
   //TODO add zookeeper synchronization
-  public GroupInfoStore(Configuration conf, MasterServices master) throws IOException {
+  public GroupInfoManagerImpl(Configuration conf, MasterServices master) throws IOException {
 		groupMap = new ConcurrentHashMap<String, GroupInfo>();
 		this.path = new Path(FSUtils.getRootDir(conf), GROUP_INFO_FILE_NAME);
 		this.fs = FSUtils.getRootDir(conf).getFileSystem(conf);

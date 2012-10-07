@@ -37,7 +37,6 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
-import org.apache.hadoop.hbase.avro.generated.HBase;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.ipc.HRegionInterface;
@@ -91,7 +90,7 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
+						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
@@ -122,7 +121,7 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
+						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
@@ -173,7 +172,7 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
+						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
@@ -212,7 +211,7 @@ public class TestGroupInfoManager {
 		TEST_UTIL.getDFSCluster()
 				.getFileSystem()
 				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoStore.GROUP_INFO_FILE_NAME), true);
+						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 	}
 
 	static void addGroup(GroupAdmin gManager, String groupName,
