@@ -19,42 +19,29 @@
  */
 package org.apache.hadoop.hbase.master;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
-import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HRegionLocation;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.RegionException;
 import org.apache.hadoop.hbase.ServerName;
-import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.client.HConnectionManager;
-import org.apache.hadoop.hbase.ipc.HMasterInterface;
 import org.apache.hadoop.hbase.ipc.HRegionInterface;
-import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.RegionServerTracker;
-import org.apache.hadoop.hbase.zookeeper.ZKTableReadOnly;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.apache.zookeeper.KeeperException;
-
-import com.google.common.collect.Lists;
 
 /**
  * This class is responsible for managing region server group information.
@@ -62,13 +49,13 @@ import com.google.common.collect.Lists;
 public class GroupAdmin {
 	private static final Log LOG = LogFactory.getLog(GroupAdmin.class);
 
-  private final GroupInfoStore groupStore;
+  private final GroupInfoManagerImpl groupManager;
   private final HConnection connection;
   private final HBaseAdmin admin;
   private final RegionServerTracker rsTracker;
 
 	public GroupAdmin(Configuration conf) throws IOException {
-    this.groupStore = new GroupInfoStore(conf, null);
+    this.groupManager = new GroupInfoManagerImpl(conf, null);
     this.admin = new HBaseAdmin(conf);
     this.connection = admin.getConnection();
     ZooKeeperWatcher zkw = new ZooKeeperWatcher(conf, "test_watcher", null);
@@ -106,7 +93,7 @@ public class GroupAdmin {
       throw new NullPointerException("groupName can't be null");
     }
 
-    GroupInfo groupInfo = groupStore.getGroupInfo(groupName);
+    GroupInfo groupInfo = groupManager.getGroupInfo(groupName);
     if (groupInfo == null) {
 			return null;
 		} else {
@@ -136,7 +123,7 @@ public class GroupAdmin {
       throw new NullPointerException("groupName can't be null");
     }
 
-    GroupInfo groupInfo = groupStore.getGroupInfo(groupName);
+    GroupInfo groupInfo = groupManager.getGroupInfo(groupName);
     if (groupInfo == null) {
 			return null;
 		} else {
@@ -157,7 +144,7 @@ public class GroupAdmin {
 	 * @return An instance of GroupInfo
 	 */
   public GroupInfo getGroupInfo(String groupName) throws IOException {
-			return groupStore.getGroupInfo(groupName);
+			return groupManager.getGroupInfo(groupName);
 	}
 
 
@@ -172,7 +159,7 @@ public class GroupAdmin {
 		GroupInfo tableRSGroup;
     des =  connection.getHTableDescriptor(tableName);
 		String group = GroupInfo.getGroupString(des);
-		tableRSGroup = groupStore.getGroupInfo(group);
+		tableRSGroup = groupManager.getGroupInfo(group);
 		return tableRSGroup;
 	}
 
@@ -182,7 +169,7 @@ public class GroupAdmin {
 	 * @return Collection of GroupInfo.
 	 */
   public Collection<GroupInfo> getExistingGroups() throws IOException {
-		return groupStore.listGroups();
+		return groupManager.listGroups();
 	}
 
 	/**
@@ -209,12 +196,12 @@ public class GroupAdmin {
     String transName = sourceGroup;
     if(!sourceGroup.startsWith(GroupInfo.TRANSITION_GROUP_PREFIX)) {
       transName = GroupInfo.TRANSITION_GROUP_PREFIX+sourceGroup+"_TO_"+targetGroup;
-      groupStore.addGroup(transName, new TreeSet<String>());
+      groupManager.addGroup(transName, new TreeSet<String>());
       isTrans = true;
     }
 
 
-    groupStore.moveServer(server, sourceGroup, transName);
+    groupManager.moveServer(server, sourceGroup, transName);
     int size = 0;
     do {
       unassignRegions(getOnlineRegions(server));
@@ -224,17 +211,17 @@ public class GroupAdmin {
     if(tries == 0) {
       throw new DoNotRetryIOException("Waiting too long for regions to be unassigned.");
     }
-    groupStore.moveServer(server, transName, targetGroup);
+    groupManager.moveServer(server, transName, targetGroup);
     if(isTrans) {
-      groupStore.deleteGroupInfo(transName);
+      groupManager.deleteGroupInfo(transName);
     }
 	}
 
   public void addGroup(String name, NavigableSet<String> servers) throws IOException {
-    groupStore.addGroup(name, servers);
+    groupManager.addGroup(name, servers);
   }
 
   public void removeGroup(String name) throws IOException {
-    groupStore.deleteGroupInfo(name);
+    groupManager.deleteGroupInfo(name);
   }
 }

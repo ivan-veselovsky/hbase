@@ -145,7 +145,7 @@ public class TestRSGroupWithDeadServers {
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		TEST_UTIL.deleteTable(tableTwoBytes);
 		TEST_UTIL.getDFSCluster().getFileSystem().delete(new Path(FSUtils.getRootDir(master
-				.getConfiguration()), GroupInfoStore.GROUP_INFO_FILE_NAME), true);
+				.getConfiguration()), GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 
 	}
 
