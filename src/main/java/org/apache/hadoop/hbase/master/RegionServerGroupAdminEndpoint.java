@@ -1,10 +1,12 @@
 package org.apache.hadoop.hbase.master;
 
-import com.sun.tools.javac.util.Pair;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.coprocessor.BaseEndpointCoprocessor;
+import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
+import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -14,12 +16,15 @@ import java.util.Map;
 public class RegionServerGroupAdminEndpoint extends BaseEndpointCoprocessor
   implements GroupInfoManagerProtocol {
 
-  private GroupInfoManager groupInfoManager;
+  private static GroupInfoManager groupInfoManager;
 
   @Override
   public void start(CoprocessorEnvironment env) {
     try {
-      groupInfoManager = new GroupInfoManagerImpl(env.getConfiguration(), null);
+      RegionCoprocessorEnvironment renv = (RegionCoprocessorEnvironment)env;
+      if(Bytes.equals(HConstants.ROOT_TABLE_NAME,renv.getRegion().getTableDesc().getName())) {
+        groupInfoManager = new GroupInfoManagerImpl(env.getConfiguration(), null);
+      }
     } catch (IOException e) {
       throw new IllegalStateException(e);
     }

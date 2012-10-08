@@ -52,7 +52,7 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 		this.fs = FSUtils.getRootDir(conf).getFileSystem(conf);
     this.master = master;
     if(master == null) {
-      zkw = new ZooKeeperWatcher(conf,"group_info_store",null);
+      zkw = new ZooKeeperWatcher(conf, "group_info_store", null);
     }
     if(!fs.exists(path)) {
       fs.createNewFile(path);
