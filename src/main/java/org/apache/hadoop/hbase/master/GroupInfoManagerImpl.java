@@ -88,7 +88,7 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
     GroupInfo src = new GroupInfo(getGroup(srcGroup));
     GroupInfo dst = new GroupInfo(getGroup(dstGroup));
 
-    if(src.removeServer(hostPort)) {
+    if(!src.removeServer(hostPort)) {
       return false;
     }
     dst.addServer(hostPort);

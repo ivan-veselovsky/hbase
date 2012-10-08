@@ -101,7 +101,7 @@ public class TestGroupInfoManager {
 		String groupTwo = groupPrefix + rand.nextInt();
 		addGroup(groupManager, groupTwo, 1);
 		// Force the group info manager to read group information from disk.
-		assertTrue(groupManager.getExistingGroups().size() == 3);
+		assertTrue(groupManager.listGroups().size() == 3);
 		dInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		GroupInfo appInfo = groupManager.getGroupInfo(groupTwo);
 		GroupInfo adminInfo = groupManager.getGroupInfo(groupOne);
@@ -114,7 +114,7 @@ public class TestGroupInfoManager {
 		groupManager.moveServer(adminInfo.getServers().first(), groupOne,
         GroupInfo.DEFAULT_GROUP);
 		groupManager.removeGroup(groupOne);
-		assertTrue(groupManager.getExistingGroups().size() == 1);
+		assertTrue(groupManager.listGroups().size() == 1);
 	}
 
 	@Test
