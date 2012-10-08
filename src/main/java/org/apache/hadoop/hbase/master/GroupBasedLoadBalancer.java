@@ -83,7 +83,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       Map<ServerName, List<HRegionInfo>> assignments = new TreeMap<ServerName, List<HRegionInfo>>();
       ArrayListMultimap<String, HRegionInfo> regionGroup = groupRegions(regions);
       for (String groupKey : regionGroup.keys()) {
-        GroupInfo info = groupManager.getGroupInfo(groupKey);
+        GroupInfo info = groupManager.getGroup(groupKey);
         assignments.putAll(this.internalBalancer.roundRobinAssignment(
             regionGroup.get(groupKey),getServerToAssign(info, servers)));
       }
@@ -106,7 +106,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
         if (misplacedRegions.contains(region)) {
           regions.remove(region);
         } else {
-          GroupInfo info = groupManager.getGroupInfo(region
+          GroupInfo info = groupManager.getGroup(region
               .getTableNameAsString());
           rGroup.put(info.getName(), region);
         }
@@ -117,7 +117,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       for (String key : rGroup.keys()) {
         Map<HRegionInfo, ServerName> currentAssignmentMap = new TreeMap<HRegionInfo, ServerName>();
         List<HRegionInfo> regionList = rGroup.get(key);
-        GroupInfo info = groupManager.getGroupInfo(key);
+        GroupInfo info = groupManager.getGroup(key);
         List<ServerName> candidateList = getServerToAssign(info, servers);
         for (HRegionInfo region : regionList) {
           currentAssignmentMap.put(region, regions.get(region));
@@ -127,7 +127,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       }
 
       for (HRegionInfo region : misplacedRegions) {
-        GroupInfo info = groupManager.getGroupInfo(region
+        GroupInfo info = groupManager.getGroup(region
             .getTableNameAsString());
         List<ServerName> candidateList = getServerToAssign(info, servers);
         ServerName server = this.internalBalancer.randomAssignment(region,
@@ -151,7 +151,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
       ArrayListMultimap<String, HRegionInfo> regionGroups = groupRegions(regions);
       for (String key : regionGroups.keys()) {
         List<HRegionInfo> regionsOfSameGroup = regionGroups.get(key);
-        GroupInfo info = groupManager.getGroupInfo(key);
+        GroupInfo info = groupManager.getGroup(key);
         List<ServerName> candidateList = getServerToAssign(info, servers);
         assignments.putAll(this.internalBalancer.immediateAssignment(
             regionsOfSameGroup, candidateList));
@@ -169,8 +169,8 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
     try {
       String tableName = region.getTableNameAsString();
       List<ServerName> candidateList;
-      GroupInfo groupInfo =
-          groupManager.getGroupInfoOfTable(services.getTableDescriptors().get(region.getTableName()));
+      GroupInfo groupInfo = groupManager.getGroup(
+          groupManager.getGroupPropertyOfTable(services.getTableDescriptors().get(region.getTableName())));
       candidateList = getServerToAssign(groupInfo, servers);
 
       if ((prefferedServer == null) ||
@@ -227,7 +227,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		ArrayListMultimap<String, HRegionInfo> regionGroup = ArrayListMultimap
 				.create();
 		for (HRegionInfo region : regionList) {
-			regionGroup.put(groupManager.getGroupInfoOfTable(services.getTableDescriptors().get(region.getTableName())).getName(), region);
+			regionGroup.put(groupManager.getGroupPropertyOfTable(services.getTableDescriptors().get(region.getTableName())), region);
 		}
 		return regionGroup;
 	}
@@ -237,7 +237,8 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		List<HRegionInfo> misplacedRegions = new ArrayList<HRegionInfo>();
 		for (HRegionInfo region : regions.keySet()) {
 			ServerName assignedServer = regions.get(region);
-			GroupInfo info = groupManager.getGroupInfoOfTable(region.getTableDesc());
+			GroupInfo info = groupManager.getGroup(
+          groupManager.getGroupPropertyOfTable(region.getTableDesc()));
 			if(!info.containsServer(assignedServer.getHostAndPort())) {
 				misplacedRegions.add(region);
 			}

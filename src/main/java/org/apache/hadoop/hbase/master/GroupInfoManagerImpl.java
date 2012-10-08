@@ -28,10 +28,10 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class GroupInfoManagerImpl {
+public class GroupInfoManagerImpl implements GroupInfoManager {
 	private static final Log LOG = LogFactory.getLog(GroupInfoManagerImpl.class);
 
   public static final String GROUP_INFO_FILE_NAME = ".rsgroupinfo";
@@ -63,29 +63,15 @@ public class GroupInfoManagerImpl {
 	/**
 	 * Adds the group.
 	 *
-	 * @param groupName the group name
+	 * @param groupInfo the group name
 	 * @throws java.io.IOException Signals that an I/O exception has occurred.
 	 */
-  public synchronized void addGroup(String groupName, NavigableSet<String> servers) throws IOException {
+  @Override
+  public synchronized void addGroup(GroupInfo groupInfo) throws IOException {
     reloadConfig();
-		if (groupMap.get(groupName) != null || groupName.equals(GroupInfo.DEFAULT_GROUP)) {
-      throw new DoNotRetryIOException("Group already exists: "+groupName);
-    }
-    GroupInfo gInfo = new GroupInfo(groupName);
-    gInfo.addAll(servers);
-    groupMap.put(groupName, gInfo);
-    try {
-      flushConfig();
-    } catch (IOException e) {
-      groupMap.remove(groupName);
-      throw e;
-    }
-	}
-
-  public synchronized void updateGroup(GroupInfo groupInfo) throws IOException {
-    reloadConfig();
-    if(groupInfo.getName().equals(GroupInfo.DEFAULT_GROUP)) {
-      return;
+		if (groupMap.get(groupInfo.getName()) != null ||
+        groupInfo.getName().equals(GroupInfo.DEFAULT_GROUP)) {
+      throw new DoNotRetryIOException("Group already exists: "+groupInfo.getName());
     }
     groupMap.put(groupInfo.getName(), groupInfo);
     try {
@@ -96,10 +82,11 @@ public class GroupInfoManagerImpl {
     }
 	}
 
+  @Override
   public synchronized boolean moveServer(String hostPort, String srcGroup, String dstGroup) throws IOException {
     reloadConfig();
-    GroupInfo src = new GroupInfo(getGroupInfo(srcGroup));
-    GroupInfo dst = new GroupInfo(getGroupInfo(dstGroup));
+    GroupInfo src = new GroupInfo(getGroup(srcGroup));
+    GroupInfo dst = new GroupInfo(getGroup(dstGroup));
 
     if(src.removeServer(hostPort)) {
       return false;
@@ -121,14 +108,15 @@ public class GroupInfoManagerImpl {
 	 * @param hostPort the server
 	 * @return An instance of GroupInfo.
 	 */
-  public synchronized GroupInfo getGroupInfoByServer(String hostPort) throws IOException {
+  @Override
+  public synchronized GroupInfo getGroupOfServer(String hostPort) throws IOException {
     reloadConfig();
 		for(GroupInfo info : groupMap.values()){
 			if(info.containsServer(hostPort)){
 				return info;
 			}
 		}
-		return getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		return getGroup(GroupInfo.DEFAULT_GROUP);
 	}
 
 	/**
@@ -137,10 +125,11 @@ public class GroupInfoManagerImpl {
 	 * @param groupName the group name
 	 * @return An instance of GroupInfo
 	 */
-  public synchronized GroupInfo getGroupInfo(String groupName) throws IOException {
+  @Override
+  public synchronized GroupInfo getGroup(String groupName) throws IOException {
     reloadConfig();
 		if (groupName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
-			GroupInfo defaultInfo = new GroupInfo(GroupInfo.DEFAULT_GROUP);
+			GroupInfo defaultInfo = new GroupInfo(GroupInfo.DEFAULT_GROUP, new TreeSet<String>());
       List<ServerName> unassignedServers =
           difference(getOnlineRS(),getAssignedServers());
       for(ServerName serverName: unassignedServers) {
@@ -160,7 +149,8 @@ public class GroupInfoManagerImpl {
 	 * @param groupName the group name
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 */
-  public synchronized void deleteGroupInfo(String groupName) throws IOException {
+  @Override
+  public synchronized void removeGroup(String groupName) throws IOException {
     reloadConfig();
     GroupInfo group = null;
     if(!groupMap.containsKey(groupName) || groupName.equals(GroupInfo.DEFAULT_GROUP)) {
@@ -177,14 +167,15 @@ public class GroupInfoManagerImpl {
     }
 	}
 
+  @Override
   public synchronized List<GroupInfo> listGroups() throws IOException {
     reloadConfig();
     List<GroupInfo> list = Lists.newLinkedList(groupMap.values());
-    list.add(getGroupInfo(GroupInfo.DEFAULT_GROUP));
+    list.add(getGroup(GroupInfo.DEFAULT_GROUP));
     return list;
   }
 
-	public synchronized void reloadConfig() throws IOException {
+	synchronized void reloadConfig() throws IOException {
     reloadConfig(false);
   }
 
@@ -193,7 +184,7 @@ public class GroupInfoManagerImpl {
 	 *
 	 * @throws IOException
 	 */
-	public synchronized void reloadConfig(boolean force) throws IOException {
+	synchronized void reloadConfig(boolean force) throws IOException {
 		List<GroupInfo> groupList;
 		FSDataInputStream in = null;
     FileStatus status = fs.getFileStatus(path);
@@ -249,7 +240,7 @@ public class GroupInfoManagerImpl {
 		BufferedReader br = new BufferedReader(new InputStreamReader(in));
 		String line = null;
 		try {
-			while ((line = br.readLine()) != null) {
+			while ((line = br.readLine()) != null && (line = line.trim()).length() > 0) {
 				GroupInfo group = new GroupInfo();
 				if (group.readFields(line)) {
 					if (group.getName().equalsIgnoreCase(GroupInfo.DEFAULT_GROUP))
@@ -332,10 +323,11 @@ public class GroupInfoManagerImpl {
 	 * @param desc the table name
 	 * @return An instance of GroupInfo.
 	 */
-  public GroupInfo getGroupInfoOfTable(HTableDescriptor desc) throws IOException {
-		GroupInfo tableRSGroup;
-		String group = GroupInfo.getGroupString(desc);
-		tableRSGroup = getGroupInfo(group);
-		return tableRSGroup;
+  public String getGroupPropertyOfTable(HTableDescriptor desc) throws IOException {
+		return GroupInfo.getGroupString(desc);
 	}
+
+  public void setGroupPropertyOfTable(String groupName, HTableDescriptor desc) throws IOException {
+		GroupInfo.setGroupString(groupName, desc);
+  }
 }
