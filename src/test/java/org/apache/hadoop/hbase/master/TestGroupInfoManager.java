@@ -65,6 +65,8 @@ public class TestGroupInfoManager {
 				GroupBasedLoadBalancer.class.getName());
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
         GroupMasterObserver.class.getName());
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes",
+        RegionServerGroupAdminEndpoint.class.getName());
 		TEST_UTIL.startMiniCluster(4);
 		MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
 		master = cluster.getMaster();
@@ -80,17 +82,12 @@ public class TestGroupInfoManager {
 	@Test
 	public void testBasicStartUp() throws IOException {
 		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
-		GroupInfo defaultInfo = groupManager
-				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		GroupInfo defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		// Assignment of root and meta regions.
-		assertTrue(groupManager.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP)
-				.size() == 2);
-		TEST_UTIL.getDFSCluster()
-				.getFileSystem()
-				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
+		assertTrue(groupManager.listRegionsOfGroup(GroupInfo.DEFAULT_GROUP)
+        .size() == 2);
 	}
 
 	@Test
@@ -118,10 +115,6 @@ public class TestGroupInfoManager {
         GroupInfo.DEFAULT_GROUP);
 		groupManager.removeGroup(groupOne);
 		assertTrue(groupManager.getExistingGroups().size() == 1);
-		TEST_UTIL.getDFSCluster()
-				.getFileSystem()
-				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
@@ -164,15 +157,11 @@ public class TestGroupInfoManager {
 				assertTrue(newTableGrp.containsServer(rs.getHostAndPort()));
 			}
 		}
-
+    groupManager.removeGroup(newGroupName);
 		TEST_UTIL.deleteTable(TABLENAME);
 		tableRegionAssignMap = master.getAssignmentManager()
 				.getAssignmentsByTable();
 		assertTrue(tableRegionAssignMap.size() == 0);
-		TEST_UTIL.getDFSCluster()
-				.getFileSystem()
-				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
 	}
 
 	@Test
@@ -189,7 +178,7 @@ public class TestGroupInfoManager {
 				familyOneBytes, 5) == 5);
 		TEST_UTIL.waitUntilAllRegionsAssigned(5);
 		List<HRegionInfo> regions = groupManager
-				.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+				.listRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size()+">="+5,regions.size() >= 5);
 		HRegionInfo region = regions.get(regions.size()-1);
 		// Lets move this region to newGroupName group.
@@ -203,15 +192,12 @@ public class TestGroupInfoManager {
 		}
 
 		List<HRegionInfo> updatedRegions = groupManager
-				.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+				.listRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() == updatedRegions.size());
     HRegionInterface rs = admin.getConnection().getHRegionConnection(tobeAssigned.getHostname(),tobeAssigned.getPort());
 		assertFalse(rs.getOnlineRegions().contains(region));
 		TEST_UTIL.deleteTable(tableOneBytes);
-		TEST_UTIL.getDFSCluster()
-				.getFileSystem()
-				.delete(new Path(FSUtils.getRootDir(master.getConfiguration()),
-						GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
+    groupManager.removeGroup(newGroupName);
 	}
 
 	static void addGroup(GroupAdmin gManager, String groupName,
@@ -220,7 +206,7 @@ public class TestGroupInfoManager {
 				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo != null);
 		assertTrue(defaultInfo.getServers().size() >= servers);
-		gManager.addGroup(groupName, new TreeSet<String>());
+		gManager.addGroup(new GroupInfo(groupName, new TreeSet<String>()));
 		Iterator<String> itr = defaultInfo.getServers().descendingIterator();
 		for (int i = 0; i < servers; i++) {
 			gManager.moveServer(itr.next(), GroupInfo.DEFAULT_GROUP, groupName);

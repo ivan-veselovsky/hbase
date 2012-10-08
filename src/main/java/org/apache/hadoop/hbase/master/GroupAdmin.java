@@ -49,13 +49,13 @@ import org.apache.zookeeper.KeeperException;
 public class GroupAdmin {
 	private static final Log LOG = LogFactory.getLog(GroupAdmin.class);
 
-  private final GroupInfoManagerImpl groupManager;
+  private final GroupInfoManager groupManager;
   private final HConnection connection;
   private final HBaseAdmin admin;
   private final RegionServerTracker rsTracker;
 
 	public GroupAdmin(Configuration conf) throws IOException {
-    this.groupManager = new GroupInfoManagerImpl(conf, null);
+    this.groupManager = new GroupInfoManagerProxy(conf);
     this.admin = new HBaseAdmin(conf);
     this.connection = admin.getConnection();
     ZooKeeperWatcher zkw = new ZooKeeperWatcher(conf, "test_watcher", null);
@@ -86,14 +86,13 @@ public class GroupAdmin {
 	 *            the name of the group
 	 * @return list of regions this group contains
 	 */
-  //TODO determine what this is for
-  public List<HRegionInfo> getRegionsOfGroup(String groupName) throws IOException {
+  public List<HRegionInfo> listRegionsOfGroup(String groupName) throws IOException {
 		List<HRegionInfo> regions = new ArrayList<HRegionInfo>();
 		if (groupName == null) {
       throw new NullPointerException("groupName can't be null");
     }
 
-    GroupInfo groupInfo = groupManager.getGroupInfo(groupName);
+    GroupInfo groupInfo = groupManager.getGroup(groupName);
     if (groupInfo == null) {
 			return null;
 		} else {
@@ -116,14 +115,13 @@ public class GroupAdmin {
 	 *            the name of the group
 	 * @return List of HTableDescriptor
 	 */
-  //TODO figure out what this is for
-  public Collection<String> getTablesOfGroup(String groupName) throws IOException {
+  public Collection<String> listTablesOfGroup(String groupName) throws IOException {
 		Set<String> set = new HashSet<String>();
 		if (groupName == null) {
       throw new NullPointerException("groupName can't be null");
     }
 
-    GroupInfo groupInfo = groupManager.getGroupInfo(groupName);
+    GroupInfo groupInfo = groupManager.getGroup(groupName);
     if (groupInfo == null) {
 			return null;
 		} else {
@@ -144,7 +142,7 @@ public class GroupAdmin {
 	 * @return An instance of GroupInfo
 	 */
   public GroupInfo getGroupInfo(String groupName) throws IOException {
-			return groupManager.getGroupInfo(groupName);
+			return groupManager.getGroup(groupName);
 	}
 
 
@@ -159,7 +157,7 @@ public class GroupAdmin {
 		GroupInfo tableRSGroup;
     des =  connection.getHTableDescriptor(tableName);
 		String group = GroupInfo.getGroupString(des);
-		tableRSGroup = groupManager.getGroupInfo(group);
+		tableRSGroup = groupManager.getGroup(group);
 		return tableRSGroup;
 	}
 
@@ -196,8 +194,8 @@ public class GroupAdmin {
     String transName = sourceGroup;
     if(!sourceGroup.startsWith(GroupInfo.TRANSITION_GROUP_PREFIX)) {
       transName = GroupInfo.TRANSITION_GROUP_PREFIX+sourceGroup+"_TO_"+targetGroup;
-      groupManager.addGroup(transName, new TreeSet<String>());
-      isTrans = true;
+      groupManager.addGroup(new GroupInfo(transName, new TreeSet<String>()));
+      isTrans = false;
     }
 
 
@@ -212,16 +210,28 @@ public class GroupAdmin {
       throw new DoNotRetryIOException("Waiting too long for regions to be unassigned.");
     }
     groupManager.moveServer(server, transName, targetGroup);
-    if(isTrans) {
-      groupManager.deleteGroupInfo(transName);
+    if(!isTrans) {
+      groupManager.removeGroup(transName);
     }
 	}
 
-  public void addGroup(String name, NavigableSet<String> servers) throws IOException {
-    groupManager.addGroup(name, servers);
+  public void addGroup(GroupInfo groupInfo) throws IOException {
+    groupManager.addGroup(groupInfo);
   }
 
   public void removeGroup(String name) throws IOException {
-    groupManager.deleteGroupInfo(name);
+    groupManager.removeGroup(name);
+  }
+
+  public List<GroupInfo> listGroups() throws IOException {
+    return groupManager.listGroups();
+  }
+
+  public String getGroupPropertyOfTable(HTableDescriptor desc) throws IOException {
+    return groupManager.getGroupPropertyOfTable(desc);
+  }
+
+  public void setGroupPropertyOfTable(String groupName, HTableDescriptor desc) throws IOException {
+    groupManager.setGroupPropertyOfTable(groupName, desc);
   }
 }

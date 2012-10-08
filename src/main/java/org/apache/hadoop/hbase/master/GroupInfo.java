@@ -25,6 +25,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,7 +49,7 @@ import com.google.common.collect.Lists;
 /**
  * Stores the group information of region server groups.
  */
-public class GroupInfo{
+public class GroupInfo implements Serializable {
 
 	private NavigableSet<String> servers;
 	public static final String DEFAULT_GROUP = "default";
@@ -56,13 +57,13 @@ public class GroupInfo{
 	public static final byte[] GROUP_KEY = Bytes.toBytes("rs_group");
 	private String name;
 
-	public GroupInfo(String name) {
-		this();
-		this.name = name;
-	}
+  public GroupInfo() {
+    this.servers = new TreeSet<String>();
+  }
 
-	public GroupInfo() {
-		this.servers = new TreeSet<String>();
+	public GroupInfo(String name, NavigableSet<String> servers) {
+		this.name = name;
+    this.servers = servers;
 	}
 
   public GroupInfo(GroupInfo src) {

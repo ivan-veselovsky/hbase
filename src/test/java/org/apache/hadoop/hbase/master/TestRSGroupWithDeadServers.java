@@ -60,6 +60,10 @@ public class TestRSGroupWithDeadServers {
 		TEST_UTIL.getConfiguration().set(
 				HConstants.HBASE_MASTER_LOADBALANCER_CLASS,
 				GroupBasedLoadBalancer.class.getName());
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
+        GroupMasterObserver.class.getName());
+    TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes",
+        RegionServerGroupAdminEndpoint.class.getName());
 		TEST_UTIL.getConfiguration().setInt(
 				"hbase.master.assignment.timeoutmonitor.period", 2000);
 		TEST_UTIL.getConfiguration().setInt(
@@ -97,7 +101,7 @@ public class TestRSGroupWithDeadServers {
 		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
 				familyTwoBytes, NUM_REGIONS) == NUM_REGIONS);
 		TEST_UTIL.waitUntilAllRegionsAssigned(NUM_REGIONS);
-		List<HRegionInfo> regions = groupAdmin.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+		List<HRegionInfo> regions = groupAdmin.listRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() >= NUM_REGIONS);
     //move table to new group
     admin.disableTable(tableNameTwo);
@@ -116,7 +120,7 @@ public class TestRSGroupWithDeadServers {
 		while (master.getAssignmentManager().isRegionsInTransition()){
 			Thread.sleep(10);
 		}
-		List<HRegionInfo> newGrpRegions = groupAdmin.getRegionsOfGroup(newRSGroup);
+		List<HRegionInfo> newGrpRegions = groupAdmin.listRegionsOfGroup(newRSGroup);
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		MiniHBaseCluster hbaseCluster = TEST_UTIL.getHBaseCluster();
 		// Now we kill all the region servers in the new group.
@@ -131,9 +135,9 @@ public class TestRSGroupWithDeadServers {
 		while (master.getAssignmentManager().getRegionsInTransition().size() < NUM_REGIONS){
 			Thread.sleep(5);
 		}
-		newGrpRegions = groupAdmin.getRegionsOfGroup(newRSGroup);
+		newGrpRegions = groupAdmin.listRegionsOfGroup(newRSGroup);
 		assertTrue(newGrpRegions.size() == 0);
-		regions = groupAdmin.getRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+		regions = groupAdmin.listRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() == 2);
 		scanTableForNegativeResults(ht);
 		startServersAndMove(groupAdmin, 1, newRSGroup);
@@ -141,12 +145,10 @@ public class TestRSGroupWithDeadServers {
 			Thread.sleep(5);
 		}
 		scanTableForPositiveResults(ht);
-		newGrpRegions = groupAdmin.getRegionsOfGroup(newRSGroup);
+		newGrpRegions = groupAdmin.listRegionsOfGroup(newRSGroup);
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		TEST_UTIL.deleteTable(tableTwoBytes);
-		TEST_UTIL.getDFSCluster().getFileSystem().delete(new Path(FSUtils.getRootDir(master
-				.getConfiguration()), GroupInfoManagerImpl.GROUP_INFO_FILE_NAME), true);
-
+    groupAdmin.removeGroup(newRSGroup);
 	}
 
 	private int getServerNumber(List<JVMClusterUtil.RegionServerThread> servers, String sName){
