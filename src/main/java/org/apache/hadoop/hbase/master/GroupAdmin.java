@@ -162,15 +162,6 @@ public class GroupAdmin {
 	}
 
 	/**
-	 * Gets the existing groups.
-	 *
-	 * @return Collection of GroupInfo.
-	 */
-  public Collection<GroupInfo> getExistingGroups() throws IOException {
-		return groupManager.listGroups();
-	}
-
-	/**
 	 * Carry out the server movement from one group to another.
 	 *
 	 * @param server the server
@@ -223,8 +214,17 @@ public class GroupAdmin {
     groupManager.removeGroup(name);
   }
 
+	/**
+	 * Gets the existing groups.
+	 *
+	 * @return Collection of GroupInfo.
+	 */
   public List<GroupInfo> listGroups() throws IOException {
     return groupManager.listGroups();
+  }
+
+  public GroupInfo getGroupOfServer(String hostPort) throws IOException {
+    return groupManager.getGroupOfServer(hostPort);
   }
 
   public String getGroupPropertyOfTable(HTableDescriptor desc) throws IOException {
