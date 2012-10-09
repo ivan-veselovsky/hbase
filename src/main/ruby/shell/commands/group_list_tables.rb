@@ -23,11 +23,11 @@ module Shell
     class GroupListTables < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+List member tables of a given group in hbase.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+Example:
+
+  hbase> group_list_tables 'default'
 EOF
       end
 

@@ -108,10 +108,10 @@ public class TestGroupInfoManager {
 		assertTrue(adminInfo.getServers().size() == 1);
 		assertTrue(appInfo.getServers().size() == 1);
 		assertTrue(dInfo.getServers().size() == 2);
-		groupManager.moveServer(appInfo.getServers().first(), groupTwo,
+		groupManager.moveServer(appInfo.getServers().first(),
         GroupInfo.DEFAULT_GROUP);
 		groupManager.removeGroup(groupTwo);
-		groupManager.moveServer(adminInfo.getServers().first(), groupOne,
+		groupManager.moveServer(adminInfo.getServers().first(),
         GroupInfo.DEFAULT_GROUP);
 		groupManager.removeGroup(groupOne);
 		assertTrue(groupManager.listGroups().size() == 1);
@@ -209,7 +209,7 @@ public class TestGroupInfoManager {
 		gManager.addGroup(new GroupInfo(groupName, new TreeSet<String>()));
 		Iterator<String> itr = defaultInfo.getServers().descendingIterator();
 		for (int i = 0; i < servers; i++) {
-			gManager.moveServer(itr.next(), GroupInfo.DEFAULT_GROUP, groupName);
+			gManager.moveServer(itr.next(), groupName);
 		}
 		assertTrue(gManager.getGroupInfo(groupName).getServers().size() >= servers);
 	}

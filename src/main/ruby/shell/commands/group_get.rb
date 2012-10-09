@@ -23,11 +23,11 @@ module Shell
     class GroupGet < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+Get a group's information.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+Example:
+
+  hbase> group_get 'default'
 EOF
       end
 

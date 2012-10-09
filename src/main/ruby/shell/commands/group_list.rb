@@ -23,11 +23,13 @@ module Shell
     class GroupList < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+List all groups. Optional regular expression parameter could
+be used to filter the output.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+Example:
+
+  hbase> group_list
+  hbase> group_list 'abc.*'
 EOF
       end
 

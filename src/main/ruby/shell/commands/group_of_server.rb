@@ -23,11 +23,9 @@ module Shell
     class GroupOfServer < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+Get the group name the given server is a member of.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+  hbase> group_of_server 'server1:port1'
 EOF
       end
 

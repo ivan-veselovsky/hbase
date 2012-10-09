@@ -205,7 +205,7 @@ public class TestRSGroupWithDeadServers {
 			}
 			assertTrue(groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP)
           .containsServer(newServer.getHostAndPort()));
-			groupAdmin.moveServer(newServer.getHostAndPort(), GroupInfo.DEFAULT_GROUP, groupName);
+			groupAdmin.moveServer(newServer.getHostAndPort(), groupName);
 			assertTrue(groupAdmin.getGroupInfo(groupName).containsServer(
           newServer.getHostAndPort()));
 		}

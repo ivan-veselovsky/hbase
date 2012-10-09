@@ -23,16 +23,14 @@ module Shell
     class GroupMoveServer < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+Reassign a region server from one group to another.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+  hbase> group_move_server 'server1:port1','default','dest'
 EOF
       end
 
-      def command(server, src, dest)
-        group_admin.moveServer(server, src, dest)
+      def command(server, dest)
+        group_admin.moveServer(server, dest)
       end
     end
   end

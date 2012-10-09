@@ -23,11 +23,9 @@ module Shell
     class GroupRemove < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+Remove a group.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+  hbase> remove_group 'my_group'
 EOF
       end
 

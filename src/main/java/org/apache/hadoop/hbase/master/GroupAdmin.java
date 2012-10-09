@@ -165,19 +165,19 @@ public class GroupAdmin {
 	 * Carry out the server movement from one group to another.
 	 *
 	 * @param server the server
-	 * @param sourceGroup the source group
 	 * @param targetGroup the target group
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 * @throws InterruptedException the interrupted exception
 	 */
   //TODO create bulk approach
-  public synchronized void moveServer(String server, String sourceGroup, String targetGroup)
+  public void moveServer(String server, String targetGroup)
 			throws IOException, InterruptedException {
 		if ((server == null) || (StringUtils.isEmpty(targetGroup))) {
 			throw new IOException(
 					"The region server or the target to move found to be null.");
 		}
 
+    String sourceGroup = getGroupOfServer(server).getName();
     long period = 10000;
     long tries = 30*60*1000/period;
     boolean isTrans = false;

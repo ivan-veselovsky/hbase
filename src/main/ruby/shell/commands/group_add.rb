@@ -23,11 +23,11 @@ module Shell
     class GroupAdd < Command
       def help
         return <<-EOF
-List all groups in hbase. Optional regular expression parameter could
-be used to filter the output. Examples:
+Add a new group.
 
-  hbase> groupList
-  hbase> glist 'abc.*'
+Example:
+
+  hbase> group_add 'my_table' ['server1:port1','server2:port2']
 EOF
       end
 
