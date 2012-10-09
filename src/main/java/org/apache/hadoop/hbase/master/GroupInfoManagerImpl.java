@@ -154,7 +154,7 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
     reloadConfig();
     GroupInfo group = null;
     if(!groupMap.containsKey(groupName) || groupName.equals(GroupInfo.DEFAULT_GROUP)) {
-      throw new IllegalArgumentException("Group does not exit or is default group");
+      throw new IllegalArgumentException("Group "+groupName+" does not exist or is default group");
     }
     synchronized (groupMap) {
       try {
