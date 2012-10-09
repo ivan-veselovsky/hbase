@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
@@ -40,7 +39,6 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.RetriesExhaustedException;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -63,7 +61,7 @@ public class TestRSGroupWithDeadServers {
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
         GroupMasterObserver.class.getName());
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes",
-        RegionServerGroupAdminEndpoint.class.getName());
+        GroupInfoManagerEndpoint.class.getName());
 		TEST_UTIL.getConfiguration().setInt(
 				"hbase.master.assignment.timeoutmonitor.period", 2000);
 		TEST_UTIL.getConfiguration().setInt(

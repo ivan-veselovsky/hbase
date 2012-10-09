@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeSet;
 
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
@@ -41,7 +40,6 @@ import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.ipc.HRegionInterface;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.FSUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -66,7 +64,7 @@ public class TestGroupInfoManager {
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
         GroupMasterObserver.class.getName());
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes",
-        RegionServerGroupAdminEndpoint.class.getName());
+        GroupInfoManagerEndpoint.class.getName());
 		TEST_UTIL.startMiniCluster(4);
 		MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
 		master = cluster.getMaster();

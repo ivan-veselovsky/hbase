@@ -13,7 +13,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-public class RegionServerGroupAdminEndpoint extends BaseEndpointCoprocessor
+public class GroupInfoManagerEndpoint extends BaseEndpointCoprocessor
   implements GroupInfoManagerProtocol {
 
   private static GroupInfoManager groupInfoManager;
