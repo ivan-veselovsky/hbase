@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.TableDescriptors;
 import org.apache.hadoop.hbase.executor.EventHandler;
 import org.apache.hadoop.hbase.executor.ExecutorService;
+import org.apache.hadoop.hbase.ipc.CoprocessorProtocol;
 import org.apache.hadoop.hbase.zookeeper.RegionServerTracker;
 
 /**
@@ -78,4 +79,24 @@ public interface MasterServices extends Server {
    * @return true if master enables ServerShutdownHandler;
    */
   public boolean isServerShutdownHandlerEnabled();
+
+  /**
+   * Registers a new CoprocessorProtocol subclass and instance to
+   * be available for handling {@link HRegion#exec(org.apache.hadoop.hbase.client.coprocessor.Exec)} calls.
+   *
+   * <p>
+   * Only a single protocol type/handler combination may be registered per
+   * region.
+   * After the first registration, subsequent calls with the same protocol type
+   * will fail with a return value of {@code false}.
+   * </p>
+   * @param protocol a {@code CoprocessorProtocol} subinterface defining the
+   * protocol methods
+   * @param handler an instance implementing the interface
+   * @param <T> the protocol type
+   * @return {@code true} if the registration was successful, {@code false}
+   * otherwise
+   */
+  public <T extends CoprocessorProtocol> boolean registerProtocol(
+      Class<T> protocol, T handler);
 }

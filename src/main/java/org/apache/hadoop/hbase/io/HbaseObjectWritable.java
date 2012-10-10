@@ -63,6 +63,7 @@ import org.apache.hadoop.hbase.client.Row;
 import org.apache.hadoop.hbase.client.RowMutations;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.coprocessor.Exec;
+import org.apache.hadoop.hbase.client.coprocessor.MasterExec;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
 import org.apache.hadoop.hbase.filter.BitComparator;
 import org.apache.hadoop.hbase.filter.ColumnCountGetFilter;
@@ -261,6 +262,9 @@ public class HbaseObjectWritable implements Writable, WritableWithSize, Configur
     addToMap(RowMutations.class, code++);
 
     addToMap(Message.class, code++);
+
+    //master coprocessor
+    addToMap(MasterExec.class, code++);
 
     //java.lang.reflect.Array is a placeholder for arrays not defined above
     GENERIC_ARRAY_CODE = code++;

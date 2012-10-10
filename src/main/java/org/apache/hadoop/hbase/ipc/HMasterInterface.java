@@ -26,6 +26,8 @@ import org.apache.hadoop.hbase.ClusterStatus;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.UnknownRegionException;
+import org.apache.hadoop.hbase.client.coprocessor.MasterExec;
+import org.apache.hadoop.hbase.client.coprocessor.MasterExecResult;
 import org.apache.hadoop.hbase.security.TokenInfo;
 import org.apache.hadoop.hbase.security.KerberosInfo;
 import org.apache.hadoop.hbase.util.Pair;
@@ -266,4 +268,7 @@ public interface HMasterInterface extends VersionedProtocol {
    * @return array of HTableDescriptor
    */
   public HTableDescriptor[] getHTableDescriptors(List<String> tableNames);
+
+  public MasterExecResult execCoprocessor(MasterExec call)
+      throws IOException;
 }
