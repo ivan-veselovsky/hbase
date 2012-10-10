@@ -1,3 +1,23 @@
+/**
+ * Copyright 2009 The Apache Software Foundation
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.hadoop.hbase.master;
 
 import com.google.common.collect.Lists;
@@ -13,10 +33,13 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
+import org.apache.hadoop.hbase.zookeeper.ZooKeeperListener;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.ZooKeeper;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -38,26 +61,21 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 
 	//Access to this map should always be synchronized.
 	private Map<String, GroupInfo> groupMap;
-  private long fileModTime = 0;
   private Path path;
   private FileSystem fs;
-
+  private ZooKeeperWatcher watcher;
   private MasterServices master;
-  private ZooKeeperWatcher zkw;
 
-  //TODO add zookeeper synchronization
   public GroupInfoManagerImpl(Configuration conf, MasterServices master) throws IOException {
-		groupMap = new ConcurrentHashMap<String, GroupInfo>();
+		this.groupMap = new ConcurrentHashMap<String, GroupInfo>();
 		this.path = new Path(FSUtils.getRootDir(conf), GROUP_INFO_FILE_NAME);
 		this.fs = FSUtils.getRootDir(conf).getFileSystem(conf);
     this.master = master;
-    if(master == null) {
-      zkw = new ZooKeeperWatcher(conf, "group_info_store", null);
-    }
+    this.watcher = master.getZooKeeper();
     if(!fs.exists(path)) {
       fs.createNewFile(path);
     }
-    this.reloadConfig();
+    reloadConfig();
   }
 
 	/**
@@ -68,7 +86,6 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	 */
   @Override
   public synchronized void addGroup(GroupInfo groupInfo) throws IOException {
-    reloadConfig();
 		if (groupMap.get(groupInfo.getName()) != null ||
         groupInfo.getName().equals(GroupInfo.DEFAULT_GROUP)) {
       throw new DoNotRetryIOException("Group already exists: "+groupInfo.getName());
@@ -84,7 +101,6 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 
   @Override
   public synchronized boolean moveServer(String hostPort, String srcGroup, String dstGroup) throws IOException {
-    reloadConfig();
     GroupInfo src = new GroupInfo(getGroup(srcGroup));
     GroupInfo dst = new GroupInfo(getGroup(dstGroup));
 
@@ -110,7 +126,6 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	 */
   @Override
   public synchronized GroupInfo getGroupOfServer(String hostPort) throws IOException {
-    reloadConfig();
 		for(GroupInfo info : groupMap.values()){
 			if(info.containsServer(hostPort)){
 				return info;
@@ -127,7 +142,6 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	 */
   @Override
   public synchronized GroupInfo getGroup(String groupName) throws IOException {
-    reloadConfig();
 		if (groupName.equalsIgnoreCase(GroupInfo.DEFAULT_GROUP)) {
 			GroupInfo defaultInfo = new GroupInfo(GroupInfo.DEFAULT_GROUP, new TreeSet<String>());
       List<ServerName> unassignedServers =
@@ -151,7 +165,6 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	 */
   @Override
   public synchronized void removeGroup(String groupName) throws IOException {
-    reloadConfig();
     GroupInfo group = null;
     if(!groupMap.containsKey(groupName) || groupName.equals(GroupInfo.DEFAULT_GROUP)) {
       throw new IllegalArgumentException("Group "+groupName+" does not exist or is default group");
@@ -169,14 +182,9 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 
   @Override
   public synchronized List<GroupInfo> listGroups() throws IOException {
-    reloadConfig();
     List<GroupInfo> list = Lists.newLinkedList(groupMap.values());
     list.add(getGroup(GroupInfo.DEFAULT_GROUP));
     return list;
-  }
-
-	synchronized void reloadConfig() throws IOException {
-    reloadConfig(false);
   }
 
 	/**
@@ -184,14 +192,9 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	 *
 	 * @throws IOException
 	 */
-	synchronized void reloadConfig(boolean force) throws IOException {
+	synchronized void reloadConfig() throws IOException {
 		List<GroupInfo> groupList;
-		FSDataInputStream in = null;
-    FileStatus status = fs.getFileStatus(path);
-    if(fileModTime == status.getModificationTime() && !force) {
-        return;
-    }
-    in = fs.open(path);
+    FSDataInputStream in = fs.open(path);
     try {
       synchronized (groupMap) {
         this.groupMap.clear();
@@ -203,7 +206,6 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
     } finally {
       in.close();
     }
-    fileModTime = status.getModificationTime();
 	}
 
 	/**
@@ -281,7 +283,7 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
     }
     try {
       List<ServerName> servers = new LinkedList<ServerName>();
-      for (String el: ZKUtil.listChildrenNoWatch(zkw, zkw.rsZNode)) {
+      for (String el: ZKUtil.listChildrenNoWatch(watcher, watcher.rsZNode)) {
         servers.add(ServerName.parseServerName(el));
       }
       return servers;
@@ -323,6 +325,7 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	 * @param desc the table name
 	 * @return An instance of GroupInfo.
 	 */
+  //TODO move this to group admin?
   public String getGroupPropertyOfTable(HTableDescriptor desc) throws IOException {
 		return GroupInfo.getGroupString(desc);
 	}

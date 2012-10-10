@@ -3461,4 +3461,8 @@ public class AssignmentManager extends ZooKeeperListener {
       this.master.abort(errorMsg, e);
     }
   }
+
+  public LoadBalancer getBalancer() {
+    return balancer;
+  }
 }

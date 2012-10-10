@@ -13,18 +13,17 @@ import java.util.List;
 
 public class GroupMasterObserver extends BaseMasterObserver {
 
-  private GroupInfoManagerImpl groupManager;
+    private MasterCoprocessorEnvironment menv;
 
   @Override
   public void start(CoprocessorEnvironment ctx) throws IOException {
-    groupManager = new GroupInfoManagerImpl(ctx.getConfiguration(),
-        ((MasterCoprocessorEnvironment)ctx).getMasterServices());
+    menv = (MasterCoprocessorEnvironment)ctx;
   }
 
   @Override
   public void preCreateTable(ObserverContext<MasterCoprocessorEnvironment> ctx, HTableDescriptor desc, HRegionInfo[] regions) throws IOException {
     String groupName = GroupInfo.getGroupString(desc);
-    if(groupManager.getGroup(groupName) == null) {
+    if(getGroupInfoManager().getGroup(groupName) == null) {
       throw new DoNotRetryIOException("Group "+groupName+" does not exist.");
     }
   }
@@ -33,7 +32,7 @@ public class GroupMasterObserver extends BaseMasterObserver {
   public void preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx, byte[] tableName, HTableDescriptor htd) throws IOException {
     MasterServices master = ctx.getEnvironment().getMasterServices();
     String groupName = GroupInfo.getGroupString(htd);
-    if(groupManager.getGroup(groupName) == null) {
+    if(getGroupInfoManager().getGroup(groupName) == null) {
       throw new DoNotRetryIOException("Group "+groupName+" does not exist.");
     }
 
@@ -41,4 +40,7 @@ public class GroupMasterObserver extends BaseMasterObserver {
     master.getAssignmentManager().unassign(tableRegionList);
   }
 
+  private GroupInfoManager getGroupInfoManager() {
+    return ((GroupBasedLoadBalancer)menv.getMasterServices().getAssignmentManager().getBalancer()).getGroupInfoManager();
+  }
 }

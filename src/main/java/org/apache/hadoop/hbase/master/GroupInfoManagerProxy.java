@@ -3,6 +3,7 @@ package org.apache.hadoop.hbase.master;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 
 
@@ -13,8 +14,9 @@ public class GroupInfoManagerProxy implements GroupInfoManager{
   private GroupInfoManager proxy;
 
   public GroupInfoManagerProxy(Configuration conf) throws IOException {
-    proxy = new HTable(conf, HConstants.ROOT_TABLE_NAME)
-        .coprocessorProxy(GroupInfoManagerProtocol.class, new byte[0]);
+    proxy = new HBaseAdmin(conf).coprocessorProxy(GroupInfoManagerProtocol.class);
+//    proxy = new HTable(conf, HConstants.ROOT_TABLE_NAME)
+//        .coprocessorProxy(GroupInfoManagerProtocol.class, new byte[0]);
   }
 
   @Override

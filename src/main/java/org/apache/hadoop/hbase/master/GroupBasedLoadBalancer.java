@@ -23,7 +23,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 	private Configuration config;
 	private ClusterStatus status;
 	private MasterServices services;
-	private GroupInfoManagerImpl groupManager;
+  private GroupInfoManager groupManager;
 	private DefaultLoadBalancer internalBalancer = new DefaultLoadBalancer();
 
 	@Override
@@ -246,4 +246,7 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
 		return misplacedRegions;
 	}
 
+  public GroupInfoManager getGroupInfoManager() {
+    return groupManager;
+  }
 }

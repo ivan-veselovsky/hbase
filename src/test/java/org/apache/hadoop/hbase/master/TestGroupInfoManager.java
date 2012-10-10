@@ -62,8 +62,7 @@ public class TestGroupInfoManager {
 				HConstants.HBASE_MASTER_LOADBALANCER_CLASS,
 				GroupBasedLoadBalancer.class.getName());
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
-        GroupMasterObserver.class.getName());
-    TEST_UTIL.getConfiguration().set("hbase.coprocessor.region.classes",
+        GroupMasterObserver.class.getName()+","+
         GroupInfoManagerEndpoint.class.getName());
 		TEST_UTIL.startMiniCluster(4);
 		MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
