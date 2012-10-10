@@ -28,7 +28,7 @@ module Hbase
     include HBaseConstants
 
     def initialize(configuration, formatter)
-      @admin = org.apache.hadoop.hbase.master.GroupAdmin.new(configuration)
+      @admin = org.apache.hadoop.hbase.master.GroupAdminClient.new(configuration)
       @conf = configuration
       @formatter = formatter
     end

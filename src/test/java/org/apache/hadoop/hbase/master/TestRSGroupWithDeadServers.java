@@ -60,7 +60,7 @@ public class TestRSGroupWithDeadServers {
 				GroupBasedLoadBalancer.class.getName());
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
         GroupMasterObserver.class.getName()+","+
-        GroupInfoManagerEndpoint.class.getName());
+        GroupAdminEndpoint.class.getName());
 		TEST_UTIL.getConfiguration().setInt(
 				"hbase.master.assignment.timeoutmonitor.period", 2000);
 		TEST_UTIL.getConfiguration().setInt(
@@ -80,7 +80,7 @@ public class TestRSGroupWithDeadServers {
 	@Test
 	public void testGroupWithOnlineServers() throws IOException, InterruptedException{
 		String newRSGroup = "group-" + rand.nextInt();
-		GroupAdmin groupAdmin = new GroupAdmin(master.getConfiguration());
+		GroupAdminClient groupAdmin = new GroupAdminClient(master.getConfiguration());
 		String tableNameTwo = "TABLE-" + rand.nextInt();
 		byte[] tableTwoBytes = Bytes.toBytes(tableNameTwo);
 		String familyName = "family" + rand.nextInt();
@@ -188,7 +188,7 @@ public class TestRSGroupWithDeadServers {
 		}
 	}
 
-	private void startServersAndMove(GroupAdmin groupAdmin, int numServers,
+	private void startServersAndMove(GroupAdminClient groupAdmin, int numServers,
 			String groupName) throws IOException, InterruptedException {
 		MiniHBaseCluster hbaseCluster = TEST_UTIL.getHBaseCluster();
 		ServerName newServer;

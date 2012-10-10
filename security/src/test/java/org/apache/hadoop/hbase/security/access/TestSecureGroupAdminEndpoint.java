@@ -23,44 +23,27 @@ import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HServerAddress;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.LargeTests;
-import org.apache.hadoop.hbase.ServerName;
-import org.apache.hadoop.hbase.client.Append;
-import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
-import org.apache.hadoop.hbase.client.Increment;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.RetriesExhaustedWithDetailsException;
-import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.coprocessor.CoprocessorException;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
-import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
-import org.apache.hadoop.hbase.master.GroupAdmin;
+import org.apache.hadoop.hbase.master.GroupBasedLoadBalancer;
 import org.apache.hadoop.hbase.master.GroupInfo;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.RegionCoprocessorHost;
 import org.apache.hadoop.hbase.security.AccessDeniedException;
 import org.apache.hadoop.hbase.security.User;
-import org.apache.hadoop.hbase.security.access.Permission.Action;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import java.io.IOException;
 import java.security.PrivilegedExceptionAction;
-import java.util.List;
-import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,7 +58,7 @@ import static org.junit.Assert.fail;
  */
 @Category(LargeTests.class)
 @SuppressWarnings("rawtypes")
-public class TestSecureGroupInfoManagerEndpoint {
+public class TestSecureGroupAdminEndpoint {
   private static HBaseTestingUtility TEST_UTIL = new HBaseTestingUtility();
   private static Configuration conf;
 
@@ -94,29 +77,27 @@ public class TestSecureGroupInfoManagerEndpoint {
   // user with no permissions
   private static User USER_NONE;
 
-  private static byte[] TEST_TABLE = Bytes.toBytes("testtable");
-  private static byte[] TEST_FAMILY = Bytes.toBytes("f1");
-
-  private static MasterCoprocessorEnvironment CP_ENV;
-  private static RegionCoprocessorEnvironment RCP_ENV;
   private static AccessController ACCESS_CONTROLLER;
-  private static SecureGroupInfoManagerEndpoint GROUP_ENDPOINT;
+  private static SecureGroupAdminEndpoint GROUP_ENDPOINT;
 
   @BeforeClass
   public static void setupBeforeClass() throws Exception {
     // setup configuration
     conf = TEST_UTIL.getConfiguration();
     SecureTestUtil.enableSecurity(conf);
-    conf.set("hbase.coprocessor.region.classes",
-        conf.get("hbase.coprocessor.region.classes")+","+SecureGroupInfoManagerEndpoint.class.getName());
+		TEST_UTIL.getConfiguration().set(
+				HConstants.HBASE_MASTER_LOADBALANCER_CLASS,
+				GroupBasedLoadBalancer.class.getName());
+    conf.set("hbase.coprocessor.master.classes",
+        conf.get("hbase.coprocessor.master.classes")+","+SecureGroupAdminEndpoint.class.getName());
 
-    TEST_UTIL.startMiniCluster();
+    TEST_UTIL.startMiniCluster(1,2);
     MasterCoprocessorHost cpHost = TEST_UTIL.getMiniHBaseCluster().getMaster().getCoprocessorHost();
     cpHost.load(AccessController.class, Coprocessor.PRIORITY_HIGHEST, conf);
     ACCESS_CONTROLLER = (AccessController) cpHost.findCoprocessor(AccessController.class.getName());
-    GROUP_ENDPOINT = (SecureGroupInfoManagerEndpoint)
-        TEST_UTIL.getMiniHBaseCluster().getRegionServer(0).getOnlineRegions(HConstants.ROOT_TABLE_NAME).get(0)
-           .getCoprocessorHost().findCoprocessor(SecureGroupInfoManagerEndpoint.class.getName());
+    GROUP_ENDPOINT = (SecureGroupAdminEndpoint)
+        TEST_UTIL.getMiniHBaseCluster().getMaster()
+           .getCoprocessorHost().findCoprocessor(SecureGroupAdminEndpoint.class.getName());
     // Wait for the ACL table to become available
     TEST_UTIL.waitTableAvailable(AccessControlLists.ACL_TABLE_NAME, 5000);
 
@@ -125,42 +106,16 @@ public class TestSecureGroupInfoManagerEndpoint {
     // create a set of test users
     SUPERUSER = User.createUserForTesting(conf, "admin", new String[] { "supergroup" });
     USER_ADMIN = User.createUserForTesting(conf, "admin2", new String[0]);
-    USER_RW = User.createUserForTesting(conf, "rwuser", new String[0]);
-    USER_RO = User.createUserForTesting(conf, "rouser", new String[0]);
-    USER_OWNER = User.createUserForTesting(conf, "owner", new String[0]);
-    USER_CREATE = User.createUserForTesting(conf, "tbl_create", new String[0]);
     USER_NONE = User.createUserForTesting(conf, "nouser", new String[0]);
 
-    HBaseAdmin admin = TEST_UTIL.getHBaseAdmin();
-    HTableDescriptor htd = new HTableDescriptor(TEST_TABLE);
-    htd.addFamily(new HColumnDescriptor(TEST_FAMILY));
-    htd.setOwner(USER_OWNER);
-    admin.createTable(htd);
-
-    // initilize access control
+    // initialize access control
     HTable meta = new HTable(conf, AccessControlLists.ACL_TABLE_NAME);
-    AccessControllerProtocol protocol = meta.coprocessorProxy(AccessControllerProtocol.class,
-      TEST_TABLE);
-
-    HRegion region = TEST_UTIL.getHBaseCluster().getRegions(TEST_TABLE).get(0);
-    RegionCoprocessorHost rcpHost = region.getCoprocessorHost();
-    RCP_ENV = rcpHost.createEnvironment(AccessController.class, ACCESS_CONTROLLER,
-      Coprocessor.PRIORITY_HIGHEST, 1, conf);
+    AccessControllerProtocol protocol =
+        meta.coprocessorProxy(AccessControllerProtocol.class, HConstants.EMPTY_START_ROW);
 
     protocol.grant(new UserPermission(Bytes.toBytes(USER_ADMIN.getShortName()),
         Permission.Action.ADMIN, Permission.Action.CREATE, Permission.Action.READ,
         Permission.Action.WRITE));
-
-    protocol.grant(new UserPermission(Bytes.toBytes(USER_RW.getShortName()), TEST_TABLE,
-        TEST_FAMILY, Permission.Action.READ, Permission.Action.WRITE));
-
-    protocol.grant(new UserPermission(Bytes.toBytes(USER_RO.getShortName()), TEST_TABLE,
-        TEST_FAMILY, Permission.Action.READ));
-
-    protocol.grant(new UserPermission(Bytes.toBytes(USER_CREATE.getShortName()), TEST_TABLE, null,
-        Permission.Action.CREATE));
-
-
   }
 
   @AfterClass
@@ -221,11 +176,11 @@ public class TestSecureGroupInfoManagerEndpoint {
 
     PrivilegedExceptionAction getGroup = new PrivilegedExceptionAction() {
       public Object run() throws Exception {
-        GROUP_ENDPOINT.getGroup("default");
+        GROUP_ENDPOINT.getGroupInfo("default");
         return null;
       }
     };
-    verifyAllowed(getGroup, SUPERUSER, USER_ADMIN, USER_CREATE, USER_RW, USER_RO, USER_NONE);
+    verifyAllowed(getGroup, SUPERUSER, USER_ADMIN, USER_NONE);
 
     PrivilegedExceptionAction addGroup = new PrivilegedExceptionAction() {
       public Object run() throws Exception {
@@ -234,7 +189,7 @@ public class TestSecureGroupInfoManagerEndpoint {
         return null;
       }
     };
-    verifyDenied(addGroup, USER_CREATE, USER_RW, USER_RO, USER_NONE);
+    verifyDenied(addGroup, USER_NONE);
     verifyAllowed(addGroup, SUPERUSER, USER_ADMIN);
 
     PrivilegedExceptionAction removeGroup = new PrivilegedExceptionAction() {
@@ -244,7 +199,7 @@ public class TestSecureGroupInfoManagerEndpoint {
       }
     };
     verifyAllowed(removeGroup, SUPERUSER, USER_ADMIN);
-    verifyDenied(removeGroup, USER_CREATE, USER_RW, USER_RO, USER_NONE);
+    verifyDenied(removeGroup, USER_NONE);
   }
 
   @Test
@@ -252,18 +207,19 @@ public class TestSecureGroupInfoManagerEndpoint {
     final AtomicLong counter = new AtomicLong(0);
     NavigableSet<String> servers = new TreeSet<String>();
     for(int i=1;i<=100;i++) {
-      servers.add("foo_"+i+":1");
+      GROUP_ENDPOINT.addGroup(new GroupInfo("testMoveServer_"+i, servers));
     }
 
-    GROUP_ENDPOINT.addGroup(new GroupInfo("testMoveServer", servers));
     PrivilegedExceptionAction action = new PrivilegedExceptionAction() {
       public Object run() throws Exception {
-        GROUP_ENDPOINT.moveServer("foo_"+counter.incrementAndGet()+":1", "default", "testMoveServer");
+        String hostPort;
+        hostPort = TEST_UTIL.getMiniHBaseCluster().getRegionServer(1).getServerName().getHostAndPort();
+        GROUP_ENDPOINT.moveServer(hostPort, "testMoveServer_"+counter.incrementAndGet());
         return null;
       }
     };
     verifyAllowed(action, SUPERUSER, USER_ADMIN);
-    verifyDenied(action, USER_CREATE, USER_RW, USER_RO, USER_NONE);
+    verifyDenied(action, USER_NONE);
   }
 
   @Test
@@ -274,25 +230,6 @@ public class TestSecureGroupInfoManagerEndpoint {
         return null;
       }
     };
-    verifyAllowed(action, SUPERUSER, USER_ADMIN, USER_CREATE, USER_RW, USER_RO, USER_NONE);
-  }
-
-  @Test
-  public void testSetGetGroupPropertyOfTable() throws Exception {
-    PrivilegedExceptionAction setGroup = new PrivilegedExceptionAction() {
-      public Object run() throws Exception {
-        GROUP_ENDPOINT.setGroupPropertyOfTable("my_group", new HTableDescriptor("my_table"));
-        return null;
-      }
-    };
-    verifyAllowed(setGroup, SUPERUSER, USER_ADMIN, USER_CREATE, USER_RW, USER_RO, USER_NONE);
-
-    PrivilegedExceptionAction getGroup = new PrivilegedExceptionAction() {
-      public Object run() throws Exception {
-        GROUP_ENDPOINT.getGroupPropertyOfTable(new HTableDescriptor("my_table"));
-        return null;
-      }
-    };
-    verifyAllowed(getGroup, SUPERUSER, USER_ADMIN, USER_CREATE, USER_RW, USER_RO, USER_NONE);
+    verifyAllowed(action, SUPERUSER, USER_ADMIN,USER_NONE);
   }
 }

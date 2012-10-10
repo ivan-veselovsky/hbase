@@ -63,7 +63,7 @@ public class TestGroupInfoManager {
 				GroupBasedLoadBalancer.class.getName());
     TEST_UTIL.getConfiguration().set("hbase.coprocessor.master.classes",
         GroupMasterObserver.class.getName()+","+
-        GroupInfoManagerEndpoint.class.getName());
+        GroupAdminEndpoint.class.getName());
 		TEST_UTIL.startMiniCluster(4);
 		MiniHBaseCluster cluster = TEST_UTIL.getHBaseCluster();
 		master = cluster.getMaster();
@@ -78,7 +78,7 @@ public class TestGroupInfoManager {
 
 	@Test
 	public void testBasicStartUp() throws IOException {
-		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
+		GroupAdminClient groupManager = new GroupAdminClient(master.getConfiguration());
 		GroupInfo defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
@@ -90,7 +90,7 @@ public class TestGroupInfoManager {
 	@Test
 	public void testSimpleRegionServerMove() throws IOException,
 			InterruptedException {
-		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
+		GroupAdminClient groupManager = new GroupAdminClient(master.getConfiguration());
 		String groupOne = groupPrefix + rand.nextInt();
 		addGroup(groupManager, groupOne, 1);
 		GroupInfo dInfo = groupManager
@@ -119,7 +119,7 @@ public class TestGroupInfoManager {
 		String tableName = tablePrefix + rand.nextInt();
 		byte[] TABLENAME = Bytes.toBytes(tableName);
 		byte[] FAMILYNAME = Bytes.toBytes(familyPrefix + rand.nextInt());
-		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
+		GroupAdminClient groupManager = new GroupAdminClient(master.getConfiguration());
 		String newGroupName = groupPrefix + rand.nextInt();
 		addGroup(groupManager, newGroupName, 2);
 
@@ -163,7 +163,7 @@ public class TestGroupInfoManager {
 
 	@Test
 	public void testRegionMove() throws IOException, InterruptedException {
-		GroupAdmin groupManager = new GroupAdmin(master.getConfiguration());
+		GroupAdminClient groupManager = new GroupAdminClient(master.getConfiguration());
 		String newGroupName = groupPrefix + rand.nextInt();
 		addGroup(groupManager, newGroupName, 1);
 		String tableNameOne = tablePrefix + rand.nextInt();
@@ -197,7 +197,7 @@ public class TestGroupInfoManager {
     groupManager.removeGroup(newGroupName);
 	}
 
-	static void addGroup(GroupAdmin gManager, String groupName,
+	static void addGroup(GroupAdminClient gManager, String groupName,
 			int servers) throws IOException, InterruptedException {
 		GroupInfo defaultInfo = gManager
 				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
