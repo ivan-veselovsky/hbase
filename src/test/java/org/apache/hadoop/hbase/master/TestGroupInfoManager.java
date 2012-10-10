@@ -79,8 +79,8 @@ public class TestGroupInfoManager {
 	@Test
 	public void testBasicStartUp() throws IOException {
 		GroupAdminClient groupManager = new GroupAdminClient(master.getConfiguration());
-		GroupInfo defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
-		defaultInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		GroupInfo defaultInfo = groupManager.getGroup(GroupInfo.DEFAULT_GROUP);
+		defaultInfo = groupManager.getGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		// Assignment of root and meta regions.
 		assertTrue(groupManager.listRegionsOfGroup(GroupInfo.DEFAULT_GROUP)
@@ -94,14 +94,14 @@ public class TestGroupInfoManager {
 		String groupOne = groupPrefix + rand.nextInt();
 		addGroup(groupManager, groupOne, 1);
 		GroupInfo dInfo = groupManager
-				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+				.getGroup(GroupInfo.DEFAULT_GROUP);
 		String groupTwo = groupPrefix + rand.nextInt();
 		addGroup(groupManager, groupTwo, 1);
 		// Force the group info manager to read group information from disk.
 		assertTrue(groupManager.listGroups().size() == 3);
-		dInfo = groupManager.getGroupInfo(GroupInfo.DEFAULT_GROUP);
-		GroupInfo appInfo = groupManager.getGroupInfo(groupTwo);
-		GroupInfo adminInfo = groupManager.getGroupInfo(groupOne);
+		dInfo = groupManager.getGroup(GroupInfo.DEFAULT_GROUP);
+		GroupInfo appInfo = groupManager.getGroup(groupTwo);
+		GroupInfo adminInfo = groupManager.getGroup(groupOne);
 		assertTrue(adminInfo.getServers().size() == 1);
 		assertTrue(appInfo.getServers().size() == 1);
 		assertTrue(dInfo.getServers().size() == 2);
@@ -142,7 +142,7 @@ public class TestGroupInfoManager {
     admin.modifyTable(TABLENAME,desc);
     admin.enableTable(TABLENAME);
     desc = admin.getTableDescriptor(TABLENAME);
-		GroupInfo newTableGrp = groupManager.getGroupInfo(GroupInfo.getGroupString(desc));
+		GroupInfo newTableGrp = groupManager.getGroup(GroupInfo.getGroupString(desc));
 		assertTrue(newTableGrp.getName().equals(newGroupName));
 		Map<String, Map<ServerName, List<HRegionInfo>>> tableRegionAssignMap = master
 				.getAssignmentManager().getAssignmentsByTable();
@@ -180,7 +180,7 @@ public class TestGroupInfoManager {
 		HRegionInfo region = regions.get(regions.size()-1);
 		// Lets move this region to newGroupName group.
 		ServerName tobeAssigned = ServerName.parseServerName(groupManager
-				.getGroupInfo(newGroupName).getServers().first());
+				.getGroup(newGroupName).getServers().first());
 		master.move(region.getEncodedNameAsBytes(),
         Bytes.toBytes(tobeAssigned.toString()));
 
@@ -200,7 +200,7 @@ public class TestGroupInfoManager {
 	static void addGroup(GroupAdminClient gManager, String groupName,
 			int servers) throws IOException, InterruptedException {
 		GroupInfo defaultInfo = gManager
-				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+				.getGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo != null);
 		assertTrue(defaultInfo.getServers().size() >= servers);
 		gManager.addGroup(new GroupInfo(groupName, new TreeSet<String>()));
@@ -208,7 +208,7 @@ public class TestGroupInfoManager {
 		for (int i = 0; i < servers; i++) {
 			gManager.moveServer(itr.next(), groupName);
 		}
-		assertTrue(gManager.getGroupInfo(groupName).getServers().size() >= servers);
+		assertTrue(gManager.getGroup(groupName).getServers().size() >= servers);
 	}
 
 }

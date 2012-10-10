@@ -20,30 +20,17 @@
 package org.apache.hadoop.hbase.master;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeSet;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MasterNotRunningException;
-import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HConnection;
-import org.apache.hadoop.hbase.ipc.HRegionInterface;
-import org.apache.hadoop.hbase.zookeeper.RegionServerTracker;
-import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
-import org.apache.zookeeper.KeeperException;
 
 /**
  * This class is responsible for managing region server group information.
@@ -67,8 +54,8 @@ public class GroupAdminClient implements GroupAdmin {
   }
 
   @Override
-  public GroupInfo getGroupInfo(String groupName) throws IOException {
-    return proxy.getGroupInfo(groupName);
+  public GroupInfo getGroup(String groupName) throws IOException {
+    return proxy.getGroup(groupName);
   }
 
   @Override

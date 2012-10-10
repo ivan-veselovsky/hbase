@@ -31,7 +31,7 @@ public interface GroupAdmin {
    * @param groupName the group name
    * @return An instance of GroupInfo
    */
-  GroupInfo getGroupInfo(String groupName) throws IOException;
+  GroupInfo getGroup(String groupName) throws IOException;
 
   /**
    * Gets the group info of table.
@@ -49,7 +49,6 @@ public interface GroupAdmin {
    * @throws java.io.IOException Signals that an I/O exception has occurred.
    * @throws InterruptedException the interrupted exception
    */
-//TODO create bulk approach
   void moveServer(String server, String targetGroup)
       throws IOException, InterruptedException;
 

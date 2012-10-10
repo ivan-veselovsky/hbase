@@ -2,17 +2,15 @@ package org.apache.hadoop.hbase.security.access;
 
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
-import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.master.GroupAdminEndpoint;
+import org.apache.hadoop.hbase.master.GroupAdminProtocol;
 import org.apache.hadoop.hbase.master.GroupInfo;
-import org.apache.hadoop.hbase.master.HMaster;
 
 import java.io.IOException;
 import java.util.List;
 
-public class SecureGroupAdminEndpoint extends GroupAdminEndpoint {
+public class SecureGroupAdminEndpoint extends GroupAdminEndpoint implements GroupAdminProtocol{
   private MasterCoprocessorEnvironment menv;
 
   @Override
@@ -27,8 +25,8 @@ public class SecureGroupAdminEndpoint extends GroupAdminEndpoint {
   }
 
   @Override
-  public GroupInfo getGroupInfo(String groupName) throws IOException {
-    return super.getGroupInfo(groupName);
+  public GroupInfo getGroup(String groupName) throws IOException {
+    return super.getGroup(groupName);
   }
 
   @Override

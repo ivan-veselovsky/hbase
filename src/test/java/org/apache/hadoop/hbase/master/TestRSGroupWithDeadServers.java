@@ -87,12 +87,12 @@ public class TestRSGroupWithDeadServers {
 		byte[] familyTwoBytes = Bytes.toBytes(familyName);
 		int NUM_REGIONS = 4;
 
-		GroupInfo defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		GroupInfo defaultInfo = groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		TestGroupInfoManager.addGroup(groupAdmin, newRSGroup, 2);
-		defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
+		defaultInfo = groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 2);
-		assertTrue(groupAdmin.getGroupInfo(newRSGroup).getServers().size() == 2);
+		assertTrue(groupAdmin.getGroup(newRSGroup).getServers().size() == 2);
 		HTable ht = TEST_UTIL.createTable(tableTwoBytes, familyTwoBytes);
 		// All the regions created below will be assigned to the default group.
 		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
@@ -121,7 +121,7 @@ public class TestRSGroupWithDeadServers {
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		MiniHBaseCluster hbaseCluster = TEST_UTIL.getHBaseCluster();
 		// Now we kill all the region servers in the new group.
-		Set<String> serverNames = groupAdmin.getGroupInfo(newRSGroup).getServers();
+		Set<String> serverNames = groupAdmin.getGroup(newRSGroup).getServers();
 		for (String sName : serverNames) {
 			int serverNumber = getServerNumber(
 					hbaseCluster.getRegionServerThreads(), sName);
@@ -200,10 +200,10 @@ public class TestRSGroupWithDeadServers {
 					.getServerManager().getOnlineServersList(), newServer) == null) {
 				Thread.sleep(5);
 			}
-			assertTrue(groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP)
+			assertTrue(groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP)
           .containsServer(newServer.getHostAndPort()));
 			groupAdmin.moveServer(newServer.getHostAndPort(), groupName);
-			assertTrue(groupAdmin.getGroupInfo(groupName).containsServer(
+			assertTrue(groupAdmin.getGroup(groupName).containsServer(
           newServer.getHostAndPort()));
 		}
 	}

@@ -25,7 +25,7 @@ module Shell
         return <<-EOF
 Reassign a region server from one group to another.
 
-  hbase> group_move_server 'server1:port1','default','dest'
+  hbase> group_move_server 'server1:port1','dest'
 EOF
       end
 

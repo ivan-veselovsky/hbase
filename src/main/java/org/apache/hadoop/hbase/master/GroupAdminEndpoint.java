@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -38,7 +39,6 @@ public class GroupAdminEndpoint extends BaseEndpointCoprocessor implements Group
 
   private MasterCoprocessorEnvironment menv;
   private MasterServices master;
-  private HConnection connection;
 
   @Override
   public void start(CoprocessorEnvironment env) {
@@ -47,13 +47,14 @@ public class GroupAdminEndpoint extends BaseEndpointCoprocessor implements Group
   }
 
   private List<HRegionInfo> getOnlineRegions(String hostPort) throws IOException {
-    //lazily loading since system master might not be ready
-    if(connection == null) {
-      connection = HConnectionManager.getConnection(menv.getConfiguration());
+    List<HRegionInfo> regions = new LinkedList<HRegionInfo>();
+    for(Map.Entry<ServerName,List<HRegionInfo>> el:
+        master.getAssignmentManager().getAssignments().entrySet()) {
+      if(el.getKey().getHostAndPort().equals(hostPort)) {
+        regions.addAll(el.getValue());
+      }
     }
-    String split[] = hostPort.split(":",2);
-    HRegionInterface server = connection.getHRegionConnection(split[0], Integer.parseInt(split[1]));
-    return server.getOnlineRegions();
+    return regions;
   }
 
 	/**
@@ -121,7 +122,7 @@ public class GroupAdminEndpoint extends BaseEndpointCoprocessor implements Group
 	 * @return An instance of GroupInfo
 	 */
   @Override
-  public GroupInfo getGroupInfo(String groupName) throws IOException {
+  public GroupInfo getGroup(String groupName) throws IOException {
 			return getGroupInfoManager().getGroup(groupName);
 	}
 
@@ -150,7 +151,6 @@ public class GroupAdminEndpoint extends BaseEndpointCoprocessor implements Group
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 * @throws InterruptedException the interrupted exception
 	 */
-  //TODO create bulk approach
   @Override
   public void moveServer(String server, String targetGroup)
 			throws IOException {

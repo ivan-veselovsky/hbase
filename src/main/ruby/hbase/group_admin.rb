@@ -41,7 +41,7 @@ module Hbase
     #----------------------------------------------------------------------------------------------
     # get a group's information
     def getGroup(group_name)
-      group = @admin.getGroupInfo(group_name)
+      group = @admin.getGroup(group_name)
       res = {}
       group.getServers.each do |v|
         if block_given?
@@ -59,7 +59,7 @@ module Hbase
         servers.add(s)
       end
       group = org.apache.hadoop.hbase.master.GroupInfo.new(group_name,servers)
-      @admin.addGroup(group)
+      @admin. addGroup(group)
     end
     #----------------------------------------------------------------------------------------------
     # remove a group
