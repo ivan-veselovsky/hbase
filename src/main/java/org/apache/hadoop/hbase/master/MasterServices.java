@@ -81,8 +81,14 @@ public interface MasterServices extends Server {
   public boolean isServerShutdownHandlerEnabled();
 
   /**
+   * @return returns the master coprocessor host
+   */
+  public MasterCoprocessorHost getCoprocessorHost();
+
+  /**
    * Registers a new CoprocessorProtocol subclass and instance to
-   * be available for handling {@link HRegion#exec(org.apache.hadoop.hbase.client.coprocessor.Exec)} calls.
+   * be available for handling
+   * {@link HMaster#execCoprocessor(org.apache.hadoop.hbase.client.coprocessor.MasterExec)} calls.
    *
    * <p>
    * Only a single protocol type/handler combination may be registered per

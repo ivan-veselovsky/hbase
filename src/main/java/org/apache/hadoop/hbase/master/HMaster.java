@@ -1551,6 +1551,7 @@ Server {
     return zooKeeper;
   }
 
+  @Override
   public MasterCoprocessorHost getCoprocessorHost() {
     return cpHost;
   }

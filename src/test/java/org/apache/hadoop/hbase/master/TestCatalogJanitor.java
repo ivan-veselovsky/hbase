@@ -272,6 +272,11 @@ public class TestCatalogJanitor {
     }
 
     @Override
+    public MasterCoprocessorHost getCoprocessorHost() {
+      return null;
+    }
+
+    @Override
     public <T extends CoprocessorProtocol> boolean registerProtocol(Class<T> protocol, T handler) {
       return false;
     }
