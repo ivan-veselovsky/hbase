@@ -39,69 +39,6 @@ import com.google.common.collect.ArrayListMultimap;
 
 public class GroupBasedLoadBalancer implements LoadBalancer {
 
-<<<<<<< HEAD
-	private static final Log LOG = LogFactory
-			.getLog(GroupBasedLoadBalancer.class);
-	private Configuration config;
-	private ClusterStatus status;
-	private MasterServices services;
-  private GroupInfoManager groupManager;
-	private DefaultLoadBalancer internalBalancer = new DefaultLoadBalancer();
-
-	@Override
-	public Configuration getConf() {
-		return config;
-	}
-
-	@Override
-	public void setConf(Configuration conf) {
-		this.config = conf;
-		internalBalancer.setConf(conf);
-	}
-
-	@Override
-	public void setClusterStatus(ClusterStatus st) {
-		this.status = st;
-		internalBalancer.setClusterStatus(st);
-	}
-
-	@Override
-	public void setMasterServices(MasterServices masterServices) {
-		this.services = masterServices;
-		internalBalancer.setMasterServices(masterServices);
-		try {
-			this.groupManager = new GroupInfoManagerImpl(services.getConfiguration(), services);
-		} catch (IOException e) {
-			LOG.warn("IOException while creating GroupInfoManagerImpl.", e);
-		}
-	}
-
-	@Override
-	public List<RegionPlan> balanceCluster(
-			Map<ServerName, List<HRegionInfo>> clusterState) {
-		/*List<RegionPlan> regionPlans = new ArrayList<RegionPlan>();
-		for (GroupInfo info : groupManager.getExistingGroups()) {
-			Map<ServerName, List<HRegionInfo>> groupClusterState = new HashMap<ServerName, List<HRegionInfo>>();
-			for (ServerName sName : info.getServers()) {
-				ServerName actual = getServerName(clusterState.keySet(), sName);
-				if (actual!= null) {
-					groupClusterState.put(actual, clusterState.get(actual));
-				}
-			}
-			List<RegionPlan> groupPlans = this.internalBalancer
-					.balanceCluster(groupClusterState);
-			if (groupPlans != null) {
-				regionPlans.addAll(groupPlans);
-			}
-		}*/
-		//return regionPlans;
-		return this.internalBalancer.balanceCluster(clusterState);
-	}
-
-	@Override
-	public Map<ServerName, List<HRegionInfo>> roundRobinAssignment(
-			List<HRegionInfo> regions, List<ServerName> servers) {
-=======
   private static final Log LOG = LogFactory
       .getLog(GroupBasedLoadBalancer.class);
   private Configuration config;
@@ -177,7 +114,6 @@ public class GroupBasedLoadBalancer implements LoadBalancer {
   @Override
   public Map<ServerName, List<HRegionInfo>> roundRobinAssignment(
       List<HRegionInfo> regions, List<ServerName> servers) {
->>>>>>> a90bf1f... unit test for group based load balancer
     try {
       Map<ServerName, List<HRegionInfo>> assignments = new TreeMap<ServerName, List<HRegionInfo>>();
       ArrayListMultimap<String, HRegionInfo> regionGroup = groupRegions(regions);
