@@ -25,12 +25,12 @@ module Shell
         return <<-EOF
 Reassign a region server from one group to another.
 
-  hbase> group_move_server 'server1:port1','dest'
+  hbase> group_move_server ['server1:port','server2:port'],'dest'
 EOF
       end
 
-      def command(server, dest)
-        group_admin.moveServer(server, dest)
+      def command(servers, dest)
+        group_admin.moveServer(servers, dest)
       end
     end
   end

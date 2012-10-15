@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.apache.hadoop.hbase.HBaseTestingUtility;
@@ -105,11 +106,13 @@ public class TestGroupInfoManager {
 		assertTrue(adminInfo.getServers().size() == 1);
 		assertTrue(appInfo.getServers().size() == 1);
 		assertTrue(dInfo.getServers().size() == 2);
-		groupManager.moveServer(appInfo.getServers().first(),
+		groupManager.moveServers(appInfo.getServers(),
         GroupInfo.DEFAULT_GROUP);
+    waitForTransitions(groupManager);
 		groupManager.removeGroup(groupTwo);
-		groupManager.moveServer(adminInfo.getServers().first(),
+		groupManager.moveServers(adminInfo.getServers(),
         GroupInfo.DEFAULT_GROUP);
+    waitForTransitions(groupManager);
 		groupManager.removeGroup(groupOne);
 		assertTrue(groupManager.listGroups().size() == 1);
 	}
@@ -180,7 +183,7 @@ public class TestGroupInfoManager {
 		HRegionInfo region = regions.get(regions.size()-1);
 		// Lets move this region to newGroupName group.
 		ServerName tobeAssigned = ServerName.parseServerName(groupManager
-				.getGroup(newGroupName).getServers().first());
+				.getGroup(newGroupName).getServers().iterator().next());
 		master.move(region.getEncodedNameAsBytes(),
         Bytes.toBytes(tobeAssigned.toString()));
 
@@ -204,11 +207,20 @@ public class TestGroupInfoManager {
 		assertTrue(defaultInfo != null);
 		assertTrue(defaultInfo.getServers().size() >= servers);
 		gManager.addGroup(new GroupInfo(groupName, new TreeSet<String>()));
-		Iterator<String> itr = defaultInfo.getServers().descendingIterator();
+		Iterator<String> itr = defaultInfo.getServers().iterator();
+    Set<String> set = new TreeSet<String>();
 		for (int i = 0; i < servers; i++) {
-			gManager.moveServer(itr.next(), groupName);
+      set.add(itr.next());
 		}
+    gManager.moveServers(set, groupName);
+    waitForTransitions(gManager);
 		assertTrue(gManager.getGroup(groupName).getServers().size() >= servers);
 	}
+
+  private static void waitForTransitions(GroupAdmin gAdmin) throws IOException, InterruptedException {
+    while(gAdmin.listServersInTransition().size()>0) {
+      Thread.sleep(1000);
+    }
+  }
 
 }

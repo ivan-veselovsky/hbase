@@ -69,7 +69,7 @@ module Hbase
     #----------------------------------------------------------------------------------------------
     # move server to a group
     def moveServer(server, dest)
-      @admin.moveServer(server, dest)
+      @admin.moveServers(server, dest)
     end
     #----------------------------------------------------------------------------------------------
     # get group of server

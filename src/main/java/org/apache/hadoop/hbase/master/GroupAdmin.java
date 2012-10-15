@@ -5,6 +5,8 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public interface GroupAdmin {
   /**
@@ -49,8 +51,9 @@ public interface GroupAdmin {
    * @throws java.io.IOException Signals that an I/O exception has occurred.
    * @throws InterruptedException the interrupted exception
    */
-  void moveServer(String server, String targetGroup)
+  void moveServers(Set<String> server, String targetGroup)
       throws IOException, InterruptedException;
+
 
   void addGroup(GroupInfo groupInfo) throws IOException;
 
@@ -64,4 +67,6 @@ public interface GroupAdmin {
   List<GroupInfo> listGroups() throws IOException;
 
   GroupInfo getGroupOfServer(String hostPort) throws IOException;
+
+  Map<String, String> listServersInTransition() throws IOException;
 }

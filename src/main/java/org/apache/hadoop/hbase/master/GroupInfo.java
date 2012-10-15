@@ -20,48 +20,35 @@
 
 package org.apache.hadoop.hbase.master;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.util.Bytes;
-
-import com.google.common.collect.Lists;
 
 /**
  * Stores the group information of region server groups.
  */
 public class GroupInfo implements Serializable {
 
-	private NavigableSet<String> servers;
+	private Set<String> servers;
 	public static final String DEFAULT_GROUP = "default";
   public static final String TRANSITION_GROUP_PREFIX = "_transition_";
 	public static final byte[] GROUP_KEY = Bytes.toBytes("rs_group");
 	private String name;
 
   public GroupInfo() {
-    this.servers = new TreeSet<String>();
+    this.servers = new HashSet<String>();
   }
 
-	public GroupInfo(String name, NavigableSet<String> servers) {
+	public GroupInfo(String name, Set<String> servers) {
 		this.name = name;
     this.servers = servers;
 	}
@@ -108,7 +95,7 @@ public class GroupInfo implements Serializable {
 	 * @param serverList The list to check for containment.
 	 * @return true, if successful
 	 */
-	public boolean containsServer(NavigableSet<String> serverList) {
+	public boolean containsServer(Set<String> serverList) {
 		if (serverList.size() == 0) {
 			return false;
 		} else {
@@ -128,7 +115,7 @@ public class GroupInfo implements Serializable {
 	 *
 	 * @return
 	 */
-	public NavigableSet<String> getServers() {
+	public Set<String> getServers() {
 		return this.servers;
 	}
 

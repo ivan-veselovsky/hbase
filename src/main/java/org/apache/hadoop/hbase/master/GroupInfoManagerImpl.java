@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -100,25 +101,28 @@ public class GroupInfoManagerImpl implements GroupInfoManager {
 	}
 
   @Override
-  public synchronized boolean moveServer(String hostPort, String srcGroup, String dstGroup) throws IOException {
+  public synchronized boolean moveServers(Set<String> hostPort, String srcGroup, String dstGroup) throws IOException {
     GroupInfo src = new GroupInfo(getGroup(srcGroup));
     GroupInfo dst = new GroupInfo(getGroup(dstGroup));
-
-    if(!src.removeServer(hostPort)) {
-      return false;
+    boolean foundOne = false;
+    for(String el: hostPort) {
+      foundOne = foundOne || src.removeServer(el);
+      dst.addServer(el);
     }
-    dst.addServer(hostPort);
+
     Map<String,GroupInfo> newMap = Maps.newHashMap(groupMap);
-    if(!src.getName().equals(GroupInfo.DEFAULT_GROUP))
+    if(!src.getName().equals(GroupInfo.DEFAULT_GROUP)) {
       newMap.put(src.getName(), src);
-    if(!dst.getName().equals(GroupInfo.DEFAULT_GROUP))
+    }
+    if(!dst.getName().equals(GroupInfo.DEFAULT_GROUP)) {
       newMap.put(dst.getName(), dst);
+    }
     flushConfig(newMap);
     groupMap = newMap;
-    return true;
+    return foundOne;
   }
 
-	/**
+  /**
 	 * Gets the group info of server.
 	 *
 	 * @param hostPort the server

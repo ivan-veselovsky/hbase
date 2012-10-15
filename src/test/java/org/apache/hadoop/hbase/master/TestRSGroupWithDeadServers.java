@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -111,7 +112,7 @@ public class TestRSGroupWithDeadServers {
 		//Move the ROOT and META regions to default group.
 		ServerName serverForRoot =
         ServerName.findServerWithSameHostnamePort(master.getServerManager().getOnlineServersList(),
-            ServerName.parseServerName(defaultInfo.getServers().first()));
+            ServerName.parseServerName(defaultInfo.getServers().iterator().next()));
 		master.move(HRegionInfo.ROOT_REGIONINFO.getEncodedNameAsBytes(), Bytes.toBytes(serverForRoot.toString()));
 		master.move(HRegionInfo.FIRST_META_REGIONINFO.getEncodedNameAsBytes(), Bytes.toBytes(serverForRoot.toString()));
 		while (master.getAssignmentManager().isRegionsInTransition()){
@@ -202,10 +203,19 @@ public class TestRSGroupWithDeadServers {
 			}
 			assertTrue(groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP)
           .containsServer(newServer.getHostAndPort()));
-			groupAdmin.moveServer(newServer.getHostAndPort(), groupName);
+      Set<String> set = new TreeSet<String>();
+      set.add(newServer.getHostAndPort());
+			groupAdmin.moveServers(set, groupName);
+      waitForTransitions(groupAdmin);
 			assertTrue(groupAdmin.getGroup(groupName).containsServer(
           newServer.getHostAndPort()));
 		}
 	}
+
+  private static void waitForTransitions(GroupAdmin gAdmin) throws IOException, InterruptedException {
+    while(gAdmin.listServersInTransition().size()>0) {
+      Thread.sleep(1000);
+    }
+  }
 
 }

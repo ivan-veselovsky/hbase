@@ -8,7 +8,7 @@ import org.apache.hadoop.hbase.master.GroupAdminProtocol;
 import org.apache.hadoop.hbase.master.GroupInfo;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
 
 public class SecureGroupAdminEndpoint extends GroupAdminEndpoint implements GroupAdminProtocol{
   private MasterCoprocessorEnvironment menv;
@@ -20,24 +20,9 @@ public class SecureGroupAdminEndpoint extends GroupAdminEndpoint implements Grou
   }
 
   @Override
-  public List<GroupInfo> listGroups() throws IOException {
-    return super.listGroups();
-  }
-
-  @Override
-  public GroupInfo getGroup(String groupName) throws IOException {
-    return super.getGroup(groupName);
-  }
-
-  @Override
-  public GroupInfo getGroupOfServer(String hostPort) throws IOException {
-    return super.getGroupOfServer(hostPort);
-  }
-
-  @Override
-  public void moveServer(String hostPort, String dstGroup) throws IOException {
+  public void moveServers(Set<String> hostPorts, String dstGroup) throws IOException {
     getAccessController().requirePermission(HConstants.ROOT_TABLE_NAME, null, null, Permission.Action.ADMIN);
-    super.moveServer(hostPort, dstGroup);
+    super.moveServers(hostPorts, dstGroup);
   }
 
   @Override

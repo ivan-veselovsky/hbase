@@ -22,6 +22,8 @@ package org.apache.hadoop.hbase.master;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -64,8 +66,8 @@ public class GroupAdminClient implements GroupAdmin {
   }
 
   @Override
-  public void moveServer(String server, String targetGroup) throws IOException, InterruptedException {
-    proxy.moveServer(server, targetGroup);
+  public void moveServers(Set<String> servers, String targetGroup) throws IOException, InterruptedException {
+    proxy.moveServers(servers, targetGroup);
   }
 
   @Override
@@ -86,6 +88,11 @@ public class GroupAdminClient implements GroupAdmin {
   @Override
   public GroupInfo getGroupOfServer(String hostPort) throws IOException {
     return proxy.getGroupOfServer(hostPort);
+  }
+
+  @Override
+  public Map<String, String> listServersInTransition() throws IOException {
+    return proxy.listServersInTransition();
   }
 
   public String getGroupPropertyOfTable(HTableDescriptor desc) throws IOException {

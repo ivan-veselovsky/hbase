@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.LargeTests;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.RetriesExhaustedWithDetailsException;
+import org.apache.hadoop.hbase.master.GroupAdmin;
 import org.apache.hadoop.hbase.master.GroupBasedLoadBalancer;
 import org.apache.hadoop.hbase.master.GroupInfo;
 import org.apache.hadoop.hbase.master.MasterCoprocessorHost;
@@ -36,8 +37,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
+import java.io.IOException;
 import java.security.PrivilegedExceptionAction;
-import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -198,7 +200,7 @@ public class TestSecureGroupAdminEndpoint {
   @Test
   public void testMoveServer() throws Exception {
     final AtomicLong counter = new AtomicLong(0);
-    NavigableSet<String> servers = new TreeSet<String>();
+    Set<String> servers = new TreeSet<String>();
     for(int i=1;i<=100;i++) {
       GROUP_ENDPOINT.addGroup(new GroupInfo("testMoveServer_"+i, servers));
     }
@@ -206,8 +208,11 @@ public class TestSecureGroupAdminEndpoint {
     PrivilegedExceptionAction action = new PrivilegedExceptionAction() {
       public Object run() throws Exception {
         String hostPort;
+        Set<String> set = new TreeSet<String>();
         hostPort = TEST_UTIL.getMiniHBaseCluster().getRegionServer(1).getServerName().getHostAndPort();
-        GROUP_ENDPOINT.moveServer(hostPort, "testMoveServer_"+counter.incrementAndGet());
+        set.add(hostPort);
+        GROUP_ENDPOINT.moveServers(set, "testMoveServer_" + counter.incrementAndGet());
+        waitForTransitions(GROUP_ENDPOINT);
         return null;
       }
     };
@@ -224,5 +229,11 @@ public class TestSecureGroupAdminEndpoint {
       }
     };
     verifyAllowed(action, SUPERUSER, USER_ADMIN,USER_NONE);
+  }
+
+  private static void waitForTransitions(GroupAdmin gAdmin) throws IOException, InterruptedException {
+    while(gAdmin.listServersInTransition().size()>0) {
+      Thread.sleep(1000);
+    }
   }
 }
