@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.management.ObjectName;
 
 import com.google.common.collect.ClassToInstanceMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MutableClassToInstanceMap;
 import org.apache.commons.logging.Log;
@@ -181,7 +182,7 @@ Server {
   private CatalogTracker catalogTracker;
   // Cluster status zk tracker and local setter
   private ClusterStatusTracker clusterStatusTracker;
-  
+
   // buffer for "fatal error" notices from region servers
   // in the cluster. This is only used for assisting
   // operations/debugging.
@@ -258,7 +259,7 @@ Server {
     // Creation of a HSA will force a resolve.
     InetSocketAddress initialIsa = new InetSocketAddress(hostname, port);
     if (initialIsa.getAddress() == null) {
-      throw new IllegalArgumentException("Failed resolve of " + this.isa);
+      throw new IllegalArgumentException("Failed resolve of " + initialIsa);
     }
     int numHandlers = conf.getInt("hbase.master.handler.count",
       conf.getInt("hbase.regionserver.handler.count", 25));
@@ -321,7 +322,7 @@ Server {
         "(Also watching cluster state node)");
       Thread.sleep(c.getInt("zookeeper.session.timeout", 180 * 1000));
     }
-    
+
   }
 
   /**
@@ -359,7 +360,7 @@ Server {
       }
     } catch (Throwable t) {
       // HBASE-5680: Likely hadoop23 vs hadoop 20.x/1.x incompatibility
-      if (t instanceof NoClassDefFoundError && 
+      if (t instanceof NoClassDefFoundError &&
           t.getMessage().contains("org/apache/hadoop/hdfs/protocol/FSConstants$SafeModeAction")) {
           // improved error message for this special case
           abort("HBase is having a problem with its Hadoop jars.  You may need to "
@@ -371,7 +372,7 @@ Server {
       }
     } finally {
       startupStatus.cleanup();
-      
+
       stopChores();
       // Wait for all the remaining region servers to report in IFF we were
       // running a cluster shutdown AND we were NOT aborting.
@@ -393,7 +394,7 @@ Server {
 
   /**
    * Try becoming active master.
-   * @param startupStatus 
+   * @param startupStatus
    * @return True if we could successfully become the active master.
    * @throws InterruptedException
    */
@@ -472,7 +473,7 @@ Server {
    * <li>Ensure assignment of root and meta regions<li>
    * <li>Handle either fresh cluster start or master failover</li>
    * </ol>
-   * @param masterRecovery 
+   * @param masterRecovery
    *
    * @throws IOException
    * @throws InterruptedException
@@ -509,7 +510,7 @@ Server {
 
     status.setStatus("Initializing ZK system trackers");
     initializeZKBasedSystemTrackers();
-    
+
     if (!masterRecovery) {
       // initialize master side coprocessors before we start handling requests
       status.setStatus("Initializing master coprocessors");
@@ -538,6 +539,9 @@ Server {
     status.setStatus("Splitting logs after master startup");
     splitLogAfterStartup(this.fileSystemManager);
 
+    this.balancer.setClusterStatus(getClusterStatus());
+    this.balancer.setMasterServices(this);
+
     // Make sure root and meta assigned before proceeding.
     assignRootAndMeta(status);
     enableServerShutdownHandler();
@@ -552,9 +556,6 @@ Server {
     // Fixup assignment manager status
     status.setStatus("Starting assignment manager");
     this.assignmentManager.joinCluster();
-
-    this.balancer.setClusterStatus(getClusterStatus());
-    this.balancer.setMasterServices(this);
 
     // Fixing up missing daughters if any
     status.setStatus("Fixing up missing daughters");
@@ -578,7 +579,7 @@ Server {
     // removing dead server with same hostname and port of rs which is trying to check in before
     // master initialization. See HBASE-5916.
     this.serverManager.clearDeadServersWithSameHostNameAndPortOfOnlineServer();
-    
+
     if (!masterRecovery) {
       if (this.cpHost != null) {
         // don't let cp initialization errors kill the master
@@ -590,11 +591,11 @@ Server {
       }
     }
   }
-  
+
   /**
    * If ServerShutdownHandler is disabled, we enable it and expire those dead
    * but not expired servers.
-   * 
+   *
    * @throws IOException
    */
   private void enableServerShutdownHandler() throws IOException {
@@ -603,7 +604,7 @@ Server {
       this.serverManager.expireDeadNotExpiredServers();
     }
   }
-  
+
   /**
    * Useful for testing purpose also where we have
    * master restart scenarios.
@@ -829,7 +830,7 @@ Server {
    *  need to install an unexpected exception handler.
    */
   private void startServiceThreads() throws IOException{
- 
+
    // Start the executor service pools
    this.executorService.startExecutorService(ExecutorType.MASTER_OPEN_REGION,
       conf.getInt("hbase.master.executor.openregion.threads", 5));
@@ -839,7 +840,7 @@ Server {
       conf.getInt("hbase.master.executor.serverops.threads", 3));
    this.executorService.startExecutorService(ExecutorType.MASTER_META_SERVER_OPERATIONS,
       conf.getInt("hbase.master.executor.serverops.threads", 5));
-   
+
    // We depend on there being only one instance of this executor running
    // at a time.  To do concurrency, would need fencing of enable/disable of
    // tables.
@@ -863,7 +864,7 @@ Server {
      this.infoServer.setAttribute(MASTER, this);
      this.infoServer.start();
     }
-   
+
     // Start allowing requests to happen.
     this.rpcServer.openServer();
     if (LOG.isDebugEnabled()) {
@@ -1079,11 +1080,11 @@ Server {
         newValue = this.cpHost.preBalanceSwitch(newValue);
       }
       if (mode == BalanceSwitchMode.SYNC) {
-        synchronized (this.balancer) {        
+        synchronized (this.balancer) {
           this.balanceSwitch = newValue;
         }
       } else {
-        this.balanceSwitch = newValue;        
+        this.balanceSwitch = newValue;
       }
       LOG.info("BalanceSwitch=" + newValue);
       if (this.cpHost != null) {
@@ -1092,14 +1093,14 @@ Server {
     } catch (IOException ioe) {
       LOG.warn("Error flipping balance switch", ioe);
     }
-    return oldValue;    
+    return oldValue;
   }
-  
+
   @Override
   public boolean synchronousBalanceSwitch(final boolean b) {
     return switchBalancer(b, BalanceSwitchMode.SYNC);
   }
-  
+
   @Override
   public boolean balanceSwitch(final boolean b) {
     return switchBalancer(b, BalanceSwitchMode.ASYNC);
@@ -1122,20 +1123,10 @@ Server {
       this.assignmentManager.getAssignment(encodedRegionName);
     if (p == null)
       throw new UnknownRegionException(Bytes.toStringBinary(encodedRegionName));
-    ServerName dest = null;
-    if (destServerName == null || destServerName.length == 0) {
-      LOG.info("Passed destination servername is null or empty so choosing a server at random");
-      List<ServerName> destServers = this.serverManager.getOnlineServersList();
-      destServers.remove(p.getSecond());
-      // If i have only one RS then destination can be null.
-      dest = balancer.randomAssignment(destServers);
-    } else {
-      dest = new ServerName(Bytes.toString(destServerName));
-    }
-    
-    // Now we can do the move
-    RegionPlan rp = new RegionPlan(p.getFirst(), p.getSecond(), dest);
-    
+    ServerName dest = new ServerName(Bytes.toString(destServerName));
+    RegionPlan rp = new RegionPlan(p.getFirst(),
+        p.getSecond(),
+        balancer.randomAssignment(p.getFirst(), Lists.newArrayList(dest)));
     try {
       if (this.cpHost != null) {
         if (this.cpHost.preMove(p.getFirst(), p.getSecond(), dest)) {
@@ -1222,7 +1213,7 @@ Server {
    * @return Pair indicating the number of regions updated Pair.getFirst is the
    *         regions that are yet to be updated Pair.getSecond is the total number
    *         of regions of the table
-   * @throws IOException 
+   * @throws IOException
    */
   public Pair<Integer, Integer> getAlterStatus(byte[] tableName)
   throws IOException {
@@ -1570,7 +1561,7 @@ Server {
   public AssignmentManager getAssignmentManager() {
     return this.assignmentManager;
   }
-  
+
   public MemoryBoundedLogMessageBuffer getRegionServerFatalLogBuffer() {
     return rsFatals;
   }
@@ -1622,13 +1613,13 @@ Server {
   public boolean isAborted() {
     return this.abort;
   }
-  
+
   void checkInitialized() throws PleaseHoldException {
     if (!this.initialized) {
       throw new PleaseHoldException("Master is initializing");
     }
   }
-  
+
   /**
    * Report whether this master is currently the active master or not.
    * If not active master, we are parked on ZK waiting to become active.
@@ -1686,8 +1677,8 @@ Server {
       cpHost.postAssign(pair.getFirst());
     }
   }
-  
-  
+
+
 
   public void assignRegion(HRegionInfo hri) {
     assignmentManager.assign(hri, true);
@@ -1699,7 +1690,15 @@ Server {
     checkInitialized();
     Pair<HRegionInfo, ServerName> pair =
       MetaReader.getRegion(this.catalogTracker, regionName);
-    if (pair == null) throw new UnknownRegionException(Bytes.toString(regionName));
+    if (Bytes.equals(HRegionInfo.ROOT_REGIONINFO.getRegionName(),regionName)) {
+      try {
+        pair = new Pair<HRegionInfo, ServerName>(HRegionInfo.ROOT_REGIONINFO, this.catalogTracker.getRootLocation());
+      } catch (InterruptedException e) {
+        throw new IOException(e);
+      }
+    }
+    if (pair == null) throw new UnknownRegionException(
+        Bytes.toString(HRegionInfo.ROOT_REGIONINFO.getRegionName())+"<-->"+Bytes.toString(regionName));
     HRegionInfo hri = pair.getFirst();
     if (cpHost != null) {
       if (cpHost.preUnassign(hri, force)) {
@@ -1718,7 +1717,7 @@ Server {
   }
 
   /**
-   * Get HTD array for given tables 
+   * Get HTD array for given tables
    * @param tableNames
    * @return HTableDescriptor[]
    */
