@@ -41,7 +41,7 @@ public class GroupMasterObserver extends BaseMasterObserver {
 
   @Override
   public void preCreateTable(ObserverContext<MasterCoprocessorEnvironment> ctx, HTableDescriptor desc, HRegionInfo[] regions) throws IOException {
-    String groupName = GroupInfo.getGroupString(desc);
+    String groupName = GroupInfo.getGroupProperty(desc);
     if(getGroupInfoManager().getGroup(groupName) == null) {
       throw new DoNotRetryIOException("Group "+groupName+" does not exist.");
     }
@@ -50,7 +50,7 @@ public class GroupMasterObserver extends BaseMasterObserver {
   @Override
   public void preModifyTable(ObserverContext<MasterCoprocessorEnvironment> ctx, byte[] tableName, HTableDescriptor htd) throws IOException {
     MasterServices master = ctx.getEnvironment().getMasterServices();
-    String groupName = GroupInfo.getGroupString(htd);
+    String groupName = GroupInfo.getGroupProperty(htd);
     if(getGroupInfoManager().getGroup(groupName) == null) {
       throw new DoNotRetryIOException("Group "+groupName+" does not exist.");
     }
@@ -60,6 +60,6 @@ public class GroupMasterObserver extends BaseMasterObserver {
   }
 
   private GroupInfoManager getGroupInfoManager() {
-    return ((GroupBasedLoadBalancer)menv.getMasterServices().getAssignmentManager().getBalancer()).getGroupInfoManager();
+    return ((GroupBasedLoadBalancer)menv.getMasterServices().getLoadBalancer()).getGroupInfoManager();
   }
 }
