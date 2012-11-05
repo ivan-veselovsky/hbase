@@ -1631,7 +1631,7 @@ public class AssignmentManager extends ZooKeeperListener {
       }
       try {
         LOG.debug("Assigning region " + state.getRegion().getRegionNameAsString() +
-          " to " + plan.getDestination().toString());
+          " to " + plan.getDestination());
         // Transition RegionState to PENDING_OPEN
         state.update(RegionState.State.PENDING_OPEN, System.currentTimeMillis(),
             plan.getDestination());
@@ -3457,9 +3457,5 @@ public class AssignmentManager extends ZooKeeperListener {
       LOG.error(errorMsg);
       this.master.abort(errorMsg, e);
     }
-  }
-
-  public LoadBalancer getBalancer() {
-    return balancer;
   }
 }

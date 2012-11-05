@@ -21,7 +21,6 @@ package org.apache.hadoop.hbase.master;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.TreeSet;
 
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HConstants;
@@ -39,7 +37,7 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MediumTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
-import org.apache.hadoop.hbase.TableDescriptors;
+import org.apache.hadoop.hbase.client.GroupAdminClient;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.ipc.HRegionInterface;
@@ -99,7 +97,7 @@ public class TestGroups {
 	@Test
 	public void testBasicStartUp() throws IOException {
 		GroupAdminClient groupAdmin = new GroupAdminClient(master.getConfiguration());
-		GroupInfo defaultInfo = groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP);
+		GroupInfo defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		// Assignment of root and meta regions.
 		assertTrue(groupAdmin.listOnlineRegionsOfGroup(GroupInfo.DEFAULT_GROUP)
@@ -112,7 +110,7 @@ public class TestGroups {
 		GroupAdminClient groupAdmin = new GroupAdminClient(master.getConfiguration());
 		GroupInfo appInfo = addGroup(groupAdmin, groupPrefix + rand.nextInt(), 1);
 		GroupInfo adminInfo = addGroup(groupAdmin, groupPrefix + rand.nextInt(), 1);
-    GroupInfo dInfo = groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP);
+    GroupInfo dInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		// Force the group info manager to read group information from disk.
 		assertTrue(groupAdmin.listGroups().size() == 3);
 		assertTrue(adminInfo.getServers().size() == 1);
@@ -150,14 +148,14 @@ public class TestGroups {
     //change table's group
     admin.disableTable(TABLENAME);
     HTableDescriptor desc = admin.getTableDescriptor(TABLENAME);
-    groupAdmin.setGroupPropertyOfTable(newGroup.getName(), desc);
+    GroupInfo.setGroupProperty(newGroup.getName(), desc);
     admin.modifyTable(TABLENAME, desc);
     admin.enableTable(TABLENAME);
 
     //verify group change
     desc = admin.getTableDescriptor(TABLENAME);
 		assertEquals(newGroup.getName(),
-        GroupInfo.getGroupString(desc));
+        GroupInfo.getGroupProperty(desc));
 
 		Map<String, Map<ServerName, List<HRegionInfo>>> tableRegionAssignMap = master
 				.getAssignmentManager().getAssignmentsByTable();
@@ -199,21 +197,23 @@ public class TestGroups {
 		master.move(region.getEncodedNameAsBytes(),
         Bytes.toBytes(tobeAssigned.toString()));
 
-		while (master.getAssignmentManager().getRegionsInTransition().size() > 0) {
-			Thread.sleep(10);
-		}
+		int tries =10;
+    while (groupAdmin.listOnlineRegionsOfGroup(GroupInfo.DEFAULT_GROUP).size() != regions.size()
+        && tries-- > 0) {
+      Thread.sleep(100);
+    }
     //verify that region was never assigned to the server
-		List<HRegionInfo> updatedRegions = groupAdmin
-				.listOnlineRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
-		assertTrue(regions.size() == updatedRegions.size());
-    HRegionInterface rs = admin.getConnection().getHRegionConnection(tobeAssigned.getHostname(),tobeAssigned.getPort());
+		List<HRegionInfo> updatedRegions = groupAdmin.listOnlineRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
+    assertTrue(regions.size() + "!=" + updatedRegions.size(),regions.size() == updatedRegions.size());
+    HRegionInterface rs = admin.getConnection().getHRegionConnection(tobeAssigned.getHostname(),
+      tobeAssigned.getPort());
 		assertFalse(rs.getOnlineRegions().contains(region));
 	}
 
 	static GroupInfo addGroup(GroupAdminClient gAdmin, String groupName,
 			int serverCount) throws IOException, InterruptedException {
 		GroupInfo defaultInfo = gAdmin
-				.getGroup(GroupInfo.DEFAULT_GROUP);
+				.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo != null);
 		assertTrue(defaultInfo.getServers().size() >= serverCount);
 		gAdmin.addGroup(groupName);
@@ -226,7 +226,7 @@ public class TestGroups {
       set.add(server);
     }
     gAdmin.moveServers(set, groupName);
-    GroupInfo result = gAdmin.getGroup(groupName);
+    GroupInfo result = gAdmin.getGroupInfo(groupName);
 		assertTrue(result.getServers().size() >= serverCount);
     return result;
 	}

@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hbase.master;
+package org.apache.hadoop.hbase.client;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -31,10 +31,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.DoNotRetryIOException;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MasterNotRunningException;
 import org.apache.hadoop.hbase.ZooKeeperConnectionException;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.master.GroupAdmin;
+import org.apache.hadoop.hbase.master.GroupAdminProtocol;
+import org.apache.hadoop.hbase.master.GroupInfo;
 
 /**
  * This class is responsible for managing region server group information.
@@ -61,8 +62,8 @@ public class GroupAdminClient implements GroupAdmin {
   }
 
   @Override
-  public GroupInfo getGroup(String groupName) throws IOException {
-    return proxy.getGroup(groupName);
+  public GroupInfo getGroupInfo(String groupName) throws IOException {
+    return proxy.getGroupInfo(groupName);
   }
 
   @Override
@@ -99,26 +100,6 @@ public class GroupAdminClient implements GroupAdmin {
   @Override
   public Map<String, String> listServersInTransition() throws IOException {
     return proxy.listServersInTransition();
-  }
-
-  /**
-   * Retrieve a table's group membership from the table descriptor
-   * @param desc
-   * @return
-   * @throws IOException
-   */
-  public String getGroupPropertyOfTable(HTableDescriptor desc) throws IOException {
-    return GroupInfo.getGroupString(desc);
-  }
-
-  /**
-   * Set's a table's group membership
-   * @param groupName group name the table is being assigned to
-   * @param desc table descriptor of the table
-   * @throws IOException
-   */
-  public void setGroupPropertyOfTable(String groupName, HTableDescriptor desc) throws IOException {
-    GroupInfo.setGroupString(groupName, desc);
   }
 
   private void waitForTransitions(Set<String> servers) throws IOException, InterruptedException {

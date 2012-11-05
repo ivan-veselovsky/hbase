@@ -34,10 +34,10 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.LargeTests;
 import org.apache.hadoop.hbase.MiniHBaseCluster;
 import org.apache.hadoop.hbase.ServerName;
+import org.apache.hadoop.hbase.client.GroupAdminClient;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.ResultScanner;
-import org.apache.hadoop.hbase.client.RetriesExhaustedException;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
@@ -89,12 +89,12 @@ public class TestGroupsWithDeadServers {
     int baseNumRegions = TEST_UTIL.getMetaTableRows().size();
 		int NUM_REGIONS = 4;
 
-		GroupInfo defaultInfo = groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP);
+		GroupInfo defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 4);
 		TestGroups.addGroup(groupAdmin, newRSGroup, 2);
-		defaultInfo = groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP);
+		defaultInfo = groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP);
 		assertTrue(defaultInfo.getServers().size() == 2);
-		assertTrue(groupAdmin.getGroup(newRSGroup).getServers().size() == 2);
+		assertTrue(groupAdmin.getGroupInfo(newRSGroup).getServers().size() == 2);
 		HTable ht = TEST_UTIL.createTable(tableTwoBytes, familyTwoBytes);
 		// All the regions created below will be assigned to the default group.
 		assertTrue(TEST_UTIL.createMultiRegions(master.getConfiguration(), ht,
@@ -105,7 +105,7 @@ public class TestGroupsWithDeadServers {
     //move table to new group
     admin.disableTable(tableNameTwo);
     HTableDescriptor desc = admin.getTableDescriptor(tableTwoBytes);
-    groupAdmin.setGroupPropertyOfTable(newRSGroup, desc);
+    GroupInfo.setGroupProperty(newRSGroup, desc);
     admin.modifyTable(tableTwoBytes, desc);
     admin.enableTable(tableTwoBytes);
 
@@ -123,7 +123,7 @@ public class TestGroupsWithDeadServers {
 		assertTrue(newGrpRegions.size() == NUM_REGIONS);
 		MiniHBaseCluster hbaseCluster = TEST_UTIL.getHBaseCluster();
 		// Now we kill all the region servers in the new group.
-		Set<String> serverNames = groupAdmin.getGroup(newRSGroup).getServers();
+		Set<String> serverNames = groupAdmin.getGroupInfo(newRSGroup).getServers();
 		for (String sName : serverNames) {
 			int serverNumber = getServerNumber(
 					hbaseCluster.getRegionServerThreads(), sName);
@@ -136,7 +136,8 @@ public class TestGroupsWithDeadServers {
 			Thread.sleep(100);
 		}
 		newGrpRegions = groupAdmin.listOnlineRegionsOfGroup(newRSGroup);
-		assertTrue(newGrpRegions.size() == 0);
+    assertTrue("Number of online regions in" + newRSGroup + " " + newGrpRegions.size(),
+      newGrpRegions.size() == 0);
 		regions = groupAdmin.listOnlineRegionsOfGroup(GroupInfo.DEFAULT_GROUP);
 		assertTrue(regions.size() == 2);
 		startServersAndMove(groupAdmin, 1, newRSGroup);
@@ -160,24 +161,7 @@ public class TestGroupsWithDeadServers {
 		}
 		return -1;
 	}
-
-	private void scanTableForNegativeResults(HTable ht){
-		ResultScanner s = null;
-		boolean isExceptionCaught = false;
-		try {
-			Scan scan = new Scan();
-			s = ht.getScanner(scan);
-		} catch (Exception exp) {
-			assertTrue(exp instanceof RetriesExhaustedException);
-			isExceptionCaught = true;
-		} finally {
-			if (s != null) {
-				s.close();
-			}
-			assertTrue(isExceptionCaught);
-		}
-	}
-
+	
 	private void scanTableForPositiveResults(HTable ht) throws IOException{
 		ResultScanner s = null;
 		try {
@@ -202,12 +186,12 @@ public class TestGroupsWithDeadServers {
 					.getServerManager().getOnlineServersList(), newServer) == null) {
 				Thread.sleep(5);
 			}
-			assertTrue(groupAdmin.getGroup(GroupInfo.DEFAULT_GROUP)
+			assertTrue(groupAdmin.getGroupInfo(GroupInfo.DEFAULT_GROUP)
           .containsServer(newServer.getHostAndPort()));
       Set<String> set = new TreeSet<String>();
       set.add(newServer.getHostAndPort());
 			groupAdmin.moveServers(set, groupName);
-			assertTrue(groupAdmin.getGroup(groupName).containsServer(
+			assertTrue(groupAdmin.getGroupInfo(groupName).containsServer(
           newServer.getHostAndPort()));
 		}
 	}

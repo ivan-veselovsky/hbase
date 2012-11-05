@@ -1135,7 +1135,9 @@ Server {
       dest = balancer.randomAssignment(p.getFirst(), Lists.newArrayList(candidate));
     }
     
-    RegionPlan rp = new RegionPlan(p.getFirst(),p.getSecond(),dest);
+    // Now we can do the move
+    RegionPlan rp = new RegionPlan(p.getFirst(), p.getSecond(), dest);
+
     try {
       if (this.cpHost != null) {
         if (this.cpHost.preMove(p.getFirst(), p.getSecond(), dest)) {
@@ -1784,6 +1786,11 @@ Server {
       LOG.debug("Registered master protocol handler: protocol="+protocol.getName());
     }
     return true;
+  }
+
+  @Override
+  public LoadBalancer getLoadBalancer() {
+    return balancer;
   }
 
   @Override
