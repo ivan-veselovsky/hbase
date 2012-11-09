@@ -748,7 +748,7 @@
             <configuration>
               <skip>${surefire.skipSecondPart}</skip>
               <testFailureIgnore>false</testFailureIgnore>
-              <forkMode>perThread</forkMode>
+              <forkMode>always</forkMode>
               <perCoreThreadCount>false</perCoreThreadCount>
               <threadCount>${surefire.secondPartThreadCount}</threadCount>
               <parallel>classes</parallel><!-- surefire hack, if not we're using method parallelisation class !-->
